@@ -84,13 +84,36 @@ final class HotkeyManager {
         return true
     }
 
+    /// The trigger key this manager listens for, as a CGKeyCode.
+    /// Default 99 = Fn/Globe. Any key works — a letter, F-key, or modifier —
+    /// because we match on the event's keyCode, not a hard-coded constant.
+    /// Settable via Settings → "Record new hotkey".
+    private(set) var triggerKeyCode: CGKeyCode = 99
+
+    /// Whether the trigger is the Fn/Globe key (driven by flagsChanged).
+    private var triggerIsFn: Bool { triggerKeyCode == 99 }
+
+    func setTriggerKeyCode(_ keyCode: CGKeyCode) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        triggerKeyCode = keyCode
+        // Changing the trigger mid-recording would wedge state; end cleanly.
+        if recording {
+            recording = false
+            tapMode = false
+            fnDown = false
+            onEvent?(.endHold)
+        }
+    }
+
     private func handle(_ event: CGEvent) -> Unmanaged<CGEvent>? {
+        let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
         switch event.type {
         case .flagsChanged:
             let newFn = event.flags.contains(.maskSecondaryFn)
             let newCmd = event.flags.contains(.maskCommand)
 
-            if newFn != fnDown {
+            // Fn/Globe trigger: driven by the flagsChanged flag.
+            if triggerIsFn, newFn != fnDown {
                 fnDown = newFn
                 if newFn {
                     // Fn edge. Activation only counts when the required
@@ -126,11 +149,32 @@ final class HotkeyManager {
             cmdDown = newCmd
 
         case .keyDown:
-            if recording && event.getIntegerValueField(.keyboardEventKeycode) == Int64(kVK_Escape) {
+            if recording && keyCode == CGKeyCode(kVK_Escape) {
                 recording = false
                 tapMode = false
                 onEvent?(.endHold) // caller treats as cancel via pipeline hook
+                break
             }
+            // Non-Fn trigger: any regular key (letter, F-key, etc.). Key
+            // repeat is ignored so holding a key doesn't retrigger.
+            if !triggerIsFn, keyCode == triggerKeyCode,
+               event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
+                if !recording && requiredModsSatisfied(event.flags) {
+                    recording = true
+                    tapMode = false
+                    fnDown = true
+                    onEvent?(.startHold)
+                }
+            }
+
+        case .keyUp:
+            // Non-Fn trigger: releasing the key ends a hold (not a latch).
+            if !triggerIsFn, keyCode == triggerKeyCode, recording, !tapMode {
+                recording = false
+                fnDown = false
+                onEvent?(.endHold)
+            }
+
         default:
             break
         }

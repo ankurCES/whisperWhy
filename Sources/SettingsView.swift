@@ -31,12 +31,11 @@ struct SettingsView: View {
         Form {
             Section("Dictation Hotkey") {
                 HStack {
-                    Text("Toggle dictation")
+                    Text("Trigger")
                     Spacer()
-                    Text(hotkeyDescription)
-                        .foregroundStyle(.secondary)
+                    HotkeyRecorderButton(shortcut: $store.hotkey)
                 }
-                Text("Hold Fn to talk, tap ⌘Fn to start/stop. Configurable key codes land in a later phase.")
+                Text("Click the button, then press any key (or Fn). Hold to talk; with ⌘ held, tap to latch. Changes apply on save.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -108,8 +107,7 @@ struct SettingsView: View {
     }
 
     private var hotkeyDescription: String {
-        let mods = store.hotkey.requireCommand ? "⌘" : ""
-        return "\(mods)Fn"
+        store.hotkey.displayName
     }
 
     private var isTesting: Bool {

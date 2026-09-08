@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import AVFoundation
 
 // Orchestrates the dictation pipeline:
 // hotkey → record → transcribe → (optional) LLM cleanup → paste at cursor.
@@ -24,12 +25,15 @@ final class DictationController: NSObject, ObservableObject {
         hotkey.onEvent = { [weak self] event in
             Task { @MainActor in self?.handle(event) }
         }
-        // Mirror the activation modifiers from settings.
-        hotkey.requireCommand = settings.hotkey.requireCommand
-        hotkey.requireOption = settings.hotkey.requireOption
-        hotkey.requireControl = settings.hotkey.requireControl
-        hotkey.requireShift = settings.hotkey.requireShift
-        notchModel.hotkeyHint = (settings.hotkey.requireCommand ? "⌘" : "") + "Fn to dictate"
+        applyShortcut()
+
+        // Diagnose the mic at launch so problems surface in the notch before
+        // the first dictation attempt. This is the missing piece behind
+        // "I don't see mic permissions requested": if the TCC row exists but
+        // is set to denied (e.g. from a stale debug build), the OS prompt
+        // never appears and the engine silently captures silence. We log the
+        // exact state so it shows up in `log show`.
+        diagnoseMic()
 
         // Prompt for Accessibility the first time; without it the event tap
         // starts but never delivers flagsChanged, so ⌘Fn silently does nothing.
@@ -45,9 +49,36 @@ final class DictationController: NSObject, ObservableObject {
         }
     }
 
+    /// Re-reads the shortcut from settings and pushes it to the hotkey manager.
+    /// Called at launch and whenever Settings saves a new hotkey.
+    func applyShortcut() {
+        hotkey.requireCommand = settings.hotkey.requireCommand
+        hotkey.requireOption = settings.hotkey.requireOption
+        hotkey.requireControl = settings.hotkey.requireControl
+        hotkey.requireShift = settings.hotkey.requireShift
+        hotkey.setTriggerKeyCode(CGKeyCode(settings.hotkey.keyCode))
+        notchModel.hotkeyHint = settings.hotkey.displayName + " to dictate"
+    }
+
     func shutdown() {
         hotkey.stop()
         task?.cancel()
+    }
+
+    /// Logs the exact mic permission + input-device state at launch. Answers
+    /// "why is there no prompt?" — if the TCC row already says denied (e.g. a
+    /// stale debug build), macOS never re-prompts and the engine captures
+    /// silence. We surface that in the notch instead of looking dead.
+    private func diagnoseMic() {
+        let perm = AVCaptureDevice.authorizationStatus(for: .audio)
+        let inputAvailable = AVCaptureDevice.default(for: .audio) != nil
+        NSLog("WhisperWhy mic: permission=%ld inputDevice=%@",
+              perm.rawValue, inputAvailable ? "yes" : "NO")
+        if perm == .denied || perm == .restricted {
+            notchModel.fail("Mic denied in System Settings → Privacy → Microphone. Enable WhisperWhy, then relaunch.")
+        } else if !inputAvailable {
+            notchModel.fail("No input device — check your mic / call audio settings.")
+        }
     }
 
     private func handle(_ event: ShortcutEvent) {

@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import QuartzCore
 import Combine
 
 // Places and shows/hides the notch panel at the top-center of the screen,
@@ -43,12 +44,20 @@ final class NotchWindowController {
         hostingView = nil
     }
 
-    /// Re-frame the panel when the state changes size.
+    /// Re-frame the panel when the state changes size. Animates the resize so
+    /// the pill springs open on hotkey press and settles closed on release —
+    /// this is the visual feedback the user asked for.
     private func relayout() {
         guard let panel else { return }
         let screen = NSScreen.main ?? NSScreen.screens[0]
         let size = Self.size(for: model.state)
-        panel.setFrame(Self.frame(for: size, in: screen), display: true, animate: false)
+        let target = Self.frame(for: size, in: screen)
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.32
+            ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 1.4, 0.4, 1.0) // overshoot spring
+            ctx.allowsImplicitAnimation = true
+            panel.animator().setFrame(target, display: true, animate: true)
+        }
     }
 
     static func size(for state: NotchState) -> NSSize {

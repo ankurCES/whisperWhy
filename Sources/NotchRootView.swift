@@ -11,14 +11,27 @@ struct NotchRootView: View {
         ZStack {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Color.black)
-                .shadow(color: .black.opacity(0.35), radius: 6, y: 2)
+                .shadow(color: glowColor.opacity(0.5), radius: 10, y: 0)
 
             content
                 .padding(.horizontal, 14)
                 .padding(.vertical, 6)
         }
         .foregroundStyle(.white)
-        .animation(.spring(response: 0.28, dampingFraction: 0.8), value: model.state)
+        // Spring the whole pill on every state change so the notch visibly
+        // pops open when the hotkey is pressed and settles closed on release.
+        .animation(.spring(response: 0.32, dampingFraction: 0.72), value: model.state)
+    }
+
+    /// Recording glows red-pink; processing glows blue; idle has no glow.
+    private var glowColor: Color {
+        switch model.state {
+        case .recording: return .pink
+        case .transcribing, .cleaning: return .blue
+        case .done: return .green
+        case .error: return .yellow
+        case .idle: return .clear
+        }
     }
 
     @ViewBuilder
@@ -42,17 +55,19 @@ struct NotchRootView: View {
 
         case .transcribing:
             HStack(spacing: 8) {
-                ProgressView().controlSize(.small)
+                ProgressView().controlSize(.small).tint(.blue)
                 Text("transcribing")
                     .font(.system(size: 12, weight: .medium))
             }
+            .transition(.scale(scale: 0.9).combined(with: .opacity))
 
         case .cleaning:
             HStack(spacing: 8) {
-                ProgressView().controlSize(.small)
+                ProgressView().controlSize(.small).tint(.blue)
                 Text("cleaning up")
                     .font(.system(size: 12, weight: .medium))
             }
+            .transition(.scale(scale: 0.9).combined(with: .opacity))
 
         case .done(let text):
             HStack(spacing: 8) {
@@ -64,6 +79,7 @@ struct NotchRootView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
+            .transition(.scale(scale: 0.9).combined(with: .opacity))
 
         case .error(let message):
             HStack(spacing: 8) {
@@ -75,6 +91,7 @@ struct NotchRootView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
+            .transition(.scale(scale: 0.9).combined(with: .opacity))
         }
     }
 }

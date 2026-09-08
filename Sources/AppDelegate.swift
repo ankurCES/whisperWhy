@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import Combine
 
@@ -12,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var store: SettingsStore?
     private var dictation: DictationController?
     private var notchController: NotchWindowController?
+    private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let store = SettingsStore()
@@ -23,6 +25,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         notch.show()
         self.notchController = notch
         dictation.start()
+
+        // Push hotkey changes to the manager live, the moment Settings saves.
+        store.$hotkey
+            .dropFirst() // initial value already applied by dictation.start()
+            .receive(on: RunLoop.main)
+            .sink { [weak dictation] _ in dictation?.applyShortcut() }
+            .store(in: &cancellables)
 
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem.button {
