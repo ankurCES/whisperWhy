@@ -20,6 +20,9 @@ enum AudioRecorderError: LocalizedError {
 }
 
 final class AudioRecorder {
+    /// Called from the audio thread with RMS level 0...1 for visual feedback.
+    var onLevel: ((Float) -> Void)?
+
     private let engine = AVAudioEngine()
     private let targetFormat = AVAudioFormat(
         commonFormat: .pcmFormatFloat32, sampleRate: 16000, channels: 1, interleaved: false
@@ -32,6 +35,25 @@ final class AudioRecorder {
 
     /// Elapsed recorded seconds, for the notch timer.
     var recordedSeconds: Double { Double(sampleCount) / 16000.0 }
+
+    /// Prompts for microphone access on first use; returns false if denied.
+    /// Without this the engine "starts" but captures silence, and macOS never
+    /// shows its own prompt — so the mic appears broken.
+    @MainActor
+    static func ensureMicPermission() async -> Bool {
+        switch AVAudioApplication.shared.recordPermission {
+        case .granted:
+            return true
+        case .undetermined:
+            return await withCheckedContinuation { cont in
+                AVAudioApplication.requestRecordPermission { granted in
+                    cont.resume(returning: granted)
+                }
+            }
+        default:
+            return false
+        }
+    }
 
     func start() throws {
         let input = engine.inputNode
@@ -82,6 +104,18 @@ final class AudioRecorder {
     }
 
     private func consume(buffer: AVAudioPCMBuffer, converter: AVAudioConverter) {
+        // Level metering on the raw input signal, for the notch animation.
+        if let onLevel, let ch = buffer.floatChannelData {
+            let frames = Int(buffer.frameLength)
+            if frames > 0 {
+                let p = ch[0]
+                var sum: Float = 0
+                for i in stride(from: 0, to: frames, by: 4) { sum += p[i] * p[i] }
+                let n = Float((frames + 3) / 4)
+                let rms = sqrt(sum / n)
+                onLevel(max(0, min(1, rms * 6))) // gain so normal speech reaches full scale
+            }
+        }
         let ratio = targetFormat.sampleRate / buffer.format.sampleRate
         let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 1024
         guard let out = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: capacity) else { return }

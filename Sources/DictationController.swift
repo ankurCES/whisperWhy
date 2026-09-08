@@ -64,12 +64,22 @@ final class DictationController: NSObject, ObservableObject {
     private func beginRecording() {
         guard task == nil else { return } // ignore double-press
         cancelled = false
-        do {
-            try recorder.start()
-            recordingURL = nil
-            notchModel.beginRecording()
-        } catch {
-            notchModel.fail(error.localizedDescription)
+        recorder.onLevel = { [weak self] level in
+            // Audio thread → hop to main before touching published state.
+            Task { @MainActor in self?.notchModel.feed(level: level) }
+        }
+        Task { @MainActor in
+            guard await AudioRecorder.ensureMicPermission() else {
+                notchModel.micDenied()
+                return
+            }
+            do {
+                try recorder.start()
+                recordingURL = nil
+                notchModel.beginRecording()
+            } catch {
+                notchModel.fail(error.localizedDescription)
+            }
         }
     }
 

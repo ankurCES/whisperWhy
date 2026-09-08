@@ -1,8 +1,8 @@
 import SwiftUI
 
 // Root SwiftUI view hosted inside the notch panel. Renders the pill for the
-// current state. Deliberately styled like codenotch: black rounded rect,
-// white monochrome content, compact.
+// current state. Recording state shows a live equalizer driven by real mic
+// RMS levels, so a working mic is always visibly different from a dead one.
 
 struct NotchRootView: View {
     @ObservedObject var model: NotchViewModel
@@ -34,16 +34,10 @@ struct NotchRootView: View {
             }
 
         case .recording:
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 9, height: 9)
-                    .modifier(PulsingModifier())
+            HStack(spacing: 10) {
+                EqualizerBars(level: model.micLevel)
                 Text(String(format: "%d:%02d", model.recordingSeconds / 60, model.recordingSeconds % 60))
                     .font(.system(size: 13, weight: .semibold).monospacedDigit())
-                Text("listening…")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.55))
             }
 
         case .transcribing:
@@ -85,13 +79,41 @@ struct NotchRootView: View {
     }
 }
 
-// Pulsing opacity for the recording dot.
-struct PulsingModifier: ViewModifier {
-    @State private var on = true
-    func body(content: Content) -> some View {
-        content
-            .opacity(on ? 1.0 : 0.25)
-            .animation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: on)
-            .onAppear { on = true }
+// Live equalizer: 7 gradient bars whose heights combine the real mic level
+// (envelope) with a per-bar sine wave (texture), so it dances even at low
+// input and flatlines visibly when the mic captures nothing.
+struct EqualizerBars: View {
+    var level: Float
+    var barCount: Int = NotchViewModel.barCount
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            HStack(spacing: 3) {
+                ForEach(0 ..< barCount, id: \.self) { i in
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(barGradient)
+                        .frame(width: 3.5, height: barHeight(index: i, time: t))
+                        .shadow(color: .pink.opacity(0.45), radius: 2.5)
+                        .animation(.linear(duration: 0.05), value: level)
+                }
+            }
+        }
+    }
+
+    private var barGradient: LinearGradient {
+        LinearGradient(
+            colors: [.cyan, .purple, .pink],
+            startPoint: .bottom, endPoint: .top
+        )
+    }
+
+    private func barHeight(index: Int, time: TimeInterval) -> CGFloat {
+        let envelope = Double(max(level, 0.06)) // floor so silence still breathes
+        let phase = Double(index) * 0.9
+        let wave = 0.5 + 0.5 * sin(time * 9 + phase)          // 0...1 texture
+        let pulse = 0.5 + 0.5 * sin(time * 3.3 - Double(index) * 0.4)
+        let h = 4 + envelope * (10 + 12 * wave * pulse + 4 * wave)
+        return CGFloat(min(h, 28))
     }
 }

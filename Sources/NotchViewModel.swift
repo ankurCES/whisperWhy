@@ -16,8 +16,18 @@ final class NotchViewModel: ObservableObject {
     @Published var state: NotchState = .idle
     @Published var recordingSeconds: Int = 0
     @Published var hotkeyHint: String = "⌘Fn to dictate"
+    /// Live mic RMS 0...1, for the equalizer bars.
+    @Published var micLevel: Float = 0
+    /// False while a mic-permission problem is being shown.
+    @Published var micPermissionDenied = false
 
     private var ticker: AnyCancellable?
+    private var lastLevelAt = Date.distantPast
+    private var levelAccumulator: Float = 0
+    private var levelSamples = 0
+
+    /// Number of equalizer bars the view renders.
+    static let barCount = 7
 
     func toggleExpanded() {
         // Phase 2+ will expand to show last transcript + copy button.
@@ -27,6 +37,10 @@ final class NotchViewModel: ObservableObject {
     func beginRecording() {
         state = .recording
         recordingSeconds = 0
+        micLevel = 0
+        micPermissionDenied = false
+        levelAccumulator = 0
+        levelSamples = 0
         ticker?.cancel()
         ticker = Timer.publish(every: 1, on: .main, in: .common)
             .autoconnect()
@@ -36,6 +50,26 @@ final class NotchViewModel: ObservableObject {
     func endRecording() {
         ticker?.cancel()
         ticker = nil
+        micLevel = 0
+    }
+
+    /// Called from the audio thread at ~10 Hz; batched so SwiftUI re-renders
+    /// ~15×/s instead of per audio callback.
+    func feed(level: Float) {
+        levelAccumulator = max(levelAccumulator, level)
+        levelSamples += 1
+        let now = Date()
+        guard now.timeIntervalSince(lastLevelAt) >= 0.065 else { return }
+        lastLevelAt = now
+        micLevel = levelAccumulator
+        levelAccumulator = 0
+        levelSamples = 0
+    }
+
+    func micDenied() {
+        endRecording()
+        micPermissionDenied = true
+        state = .error("Mic access denied — enable WhisperWhy in System Settings → Privacy → Microphone")
     }
 
     func setTranscribing() { state = .transcribing }
