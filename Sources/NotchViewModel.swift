@@ -7,7 +7,8 @@ enum NotchState: Equatable {
     case recording     // red dot pulsing + elapsed time
     case transcribing  // spinner: whisper running
     case cleaning      // spinner: LLM cleanup running
-    case done(String)  // flash the final text briefly
+    case done          // flash success briefly — the transcript is pasted,
+                       // never displayed in the notch
     case error(String) // flash the error briefly
 }
 
@@ -78,7 +79,8 @@ final class NotchViewModel: ObservableObject {
     func setCleaning() { state = .cleaning }
 
     func finish(_ text: String) {
-        show(.done(text), then: .idle)
+        _ = text // transcript is pasted, not shown
+        show(.done, then: .idle)
     }
 
     func fail(_ message: String) {

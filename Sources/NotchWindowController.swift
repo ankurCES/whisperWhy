@@ -9,7 +9,7 @@ import Combine
 
 @MainActor
 final class NotchWindowController {
-    static let collapsedSize = NSSize(width: 220, height: 34)
+    static let collapsedSize = NSSize(width: 46, height: 34)
 
     let model: NotchViewModel
     /// Called when the user taps the mic button in the notch. Wired to
@@ -68,9 +68,10 @@ final class NotchWindowController {
     static func size(for state: NotchState) -> NSSize {
         switch state {
         case .idle: return collapsedSize
-        case .recording: return NSSize(width: 250, height: 40)
-        case .transcribing, .cleaning: return NSSize(width: 230, height: 40)
-        case .done, .error: return NSSize(width: 340, height: 40)
+        case .recording: return NSSize(width: 170, height: 40)
+        case .transcribing, .cleaning: return NSSize(width: 170, height: 40)
+        case .done: return NSSize(width: 46, height: 40)
+        case .error: return NSSize(width: 340, height: 40)
         }
     }
 
