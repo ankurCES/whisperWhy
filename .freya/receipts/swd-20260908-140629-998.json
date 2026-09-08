@@ -1,0 +1,44 @@
+{
+  "id": "swd-20260908-140629-998",
+  "version": 1,
+  "timestamp": "2026-09-08T14:06:29Z",
+  "request": "write_file: WhisperWhy.entitlements",
+  "summary": "wrote 323 bytes to WhisperWhy.entitlements",
+  "file_count": 1,
+  "files": [
+    {
+      "path": "WhisperWhy.entitlements",
+      "operation": "CREATE",
+      "status": "verified",
+      "detail": "verified: c7855b120ba60341",
+      "before": {
+        "path": "/Users/ankur/AI_EXPERIMENTS/Utilities/whisperWhy/WhisperWhy.entitlements",
+        "exists": false,
+        "size": 0,
+        "mtime": -62135596800000,
+        "sha256": ""
+      },
+      "after": {
+        "path": "/Users/ankur/AI_EXPERIMENTS/Utilities/whisperWhy/WhisperWhy.entitlements",
+        "exists": true,
+        "size": 323,
+        "mtime": 1788876389987,
+        "sha256": "c7855b120ba60341dd80278f0b8b1764b5faf5ed823be1289b5c97aff772e13e",
+        "mode": 420
+      }
+    }
+  ],
+  "swd": {
+    "success": true,
+    "rolled_back": false,
+    "rollback_status": "not-needed"
+  },
+  "chain": {
+    "seq": 5,
+    "prev_hash": "ccd95005333907fbfa2329776a2bd0e628a10ed5c855f6bf5e802abbf61b314d"
+  },
+  "integrity": {
+    "sha256": "5c35fba8c691321f2a4fb407432a5b55c4a93c3c0d7d650f750a3cfbc8c79046"
+  },
+  "duration_ms": 22
+}

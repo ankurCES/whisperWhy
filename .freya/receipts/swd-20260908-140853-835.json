@@ -1,0 +1,44 @@
+{
+  "id": "swd-20260908-140853-835",
+  "version": 1,
+  "timestamp": "2026-09-08T14:08:53Z",
+  "request": "write_file: Sources/NotchRootView.swift",
+  "summary": "wrote 2950 bytes to Sources/NotchRootView.swift",
+  "file_count": 1,
+  "files": [
+    {
+      "path": "Sources/NotchRootView.swift",
+      "operation": "CREATE",
+      "status": "verified",
+      "detail": "verified: 248cc7302ca047a3",
+      "before": {
+        "path": "/Users/ankur/AI_EXPERIMENTS/Utilities/whisperWhy/Sources/NotchRootView.swift",
+        "exists": false,
+        "size": 0,
+        "mtime": -62135596800000,
+        "sha256": ""
+      },
+      "after": {
+        "path": "/Users/ankur/AI_EXPERIMENTS/Utilities/whisperWhy/Sources/NotchRootView.swift",
+        "exists": true,
+        "size": 2950,
+        "mtime": 1788876533825,
+        "sha256": "248cc7302ca047a38ee88b4f693df17652d54cf0f7e955a5032167790db1c88e",
+        "mode": 420
+      }
+    }
+  ],
+  "swd": {
+    "success": true,
+    "rolled_back": false,
+    "rollback_status": "not-needed"
+  },
+  "chain": {
+    "seq": 12,
+    "prev_hash": "e2e7db18337e019b4dde86930eefb944529c21d15bc26cf15e30753fe8376cd8"
+  },
+  "integrity": {
+    "sha256": "1c8033a58831b507a4729b4f2da16ec6f1050f1e7f4802a96574c5566699db4c"
+  },
+  "duration_ms": 20
+}

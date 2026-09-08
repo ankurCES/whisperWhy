@@ -1,0 +1,44 @@
+{
+  "id": "swd-20260908-140629-949",
+  "version": 1,
+  "timestamp": "2026-09-08T14:06:29Z",
+  "request": "write_file: Info.plist",
+  "summary": "wrote 1239 bytes to Info.plist",
+  "file_count": 1,
+  "files": [
+    {
+      "path": "Info.plist",
+      "operation": "CREATE",
+      "status": "verified",
+      "detail": "verified: f6e58705c3e27a86",
+      "before": {
+        "path": "/Users/ankur/AI_EXPERIMENTS/Utilities/whisperWhy/Info.plist",
+        "exists": false,
+        "size": 0,
+        "mtime": -62135596800000,
+        "sha256": ""
+      },
+      "after": {
+        "path": "/Users/ankur/AI_EXPERIMENTS/Utilities/whisperWhy/Info.plist",
+        "exists": true,
+        "size": 1239,
+        "mtime": 1788876389935,
+        "sha256": "f6e58705c3e27a865c82075b5b21cf01c73c283575a60d39c1c8a1029457a182",
+        "mode": 420
+      }
+    }
+  ],
+  "swd": {
+    "success": true,
+    "rolled_back": false,
+    "rollback_status": "not-needed"
+  },
+  "chain": {
+    "seq": 4,
+    "prev_hash": "fd73fa59311adbe4d9a271d2b2700905af3a0b61cdaa7616d3d4839fb7a9af1a"
+  },
+  "integrity": {
+    "sha256": "ccd95005333907fbfa2329776a2bd0e628a10ed5c855f6bf5e802abbf61b314d"
+  },
+  "duration_ms": 25
+}

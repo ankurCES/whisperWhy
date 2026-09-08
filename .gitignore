@@ -1,0 +1,6 @@
+build/
+DerivedData/
+models/*.bin
+vendor/
+.DS_Store
+*.app

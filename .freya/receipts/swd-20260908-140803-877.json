@@ -1,0 +1,44 @@
+{
+  "id": "swd-20260908-140803-877",
+  "version": 1,
+  "timestamp": "2026-09-08T14:08:03Z",
+  "request": "write_file: Sources/NotchWindowController.swift",
+  "summary": "wrote 2678 bytes to Sources/NotchWindowController.swift",
+  "file_count": 1,
+  "files": [
+    {
+      "path": "Sources/NotchWindowController.swift",
+      "operation": "CREATE",
+      "status": "verified",
+      "detail": "verified: 5abb46908eb496cd",
+      "before": {
+        "path": "/Users/ankur/AI_EXPERIMENTS/Utilities/whisperWhy/Sources/NotchWindowController.swift",
+        "exists": false,
+        "size": 0,
+        "mtime": -62135596800000,
+        "sha256": ""
+      },
+      "after": {
+        "path": "/Users/ankur/AI_EXPERIMENTS/Utilities/whisperWhy/Sources/NotchWindowController.swift",
+        "exists": true,
+        "size": 2678,
+        "mtime": 1788876483869,
+        "sha256": "5abb46908eb496cda99b83d3face6c582a6547eccf351fd9bbd35718c56e0e83",
+        "mode": 420
+      }
+    }
+  ],
+  "swd": {
+    "success": true,
+    "rolled_back": false,
+    "rollback_status": "not-needed"
+  },
+  "chain": {
+    "seq": 9,
+    "prev_hash": "3c6b2a829c97fcd0799dd447803e0e53158682347fa5ef74646543bc52cc85a9"
+  },
+  "integrity": {
+    "sha256": "b8a5488d0ae5b93b2a0b247158e86e2d2b9d35c82bcc73864b31af42f0bdd92c"
+  },
+  "duration_ms": 18
+}

@@ -1,0 +1,135 @@
+import Foundation
+import Combine
+
+// User settings, persisted via UserDefaults. Kept observable so SwiftUI
+// settings UI and the dictation controller stay in sync.
+
+struct ShortcutConfig: Codable, Equatable {
+    var keyCode: UInt32        // CGKeyCode, e.g. 99 =_fn- on ANSI
+    var requireCommand: Bool
+    var requireOption: Bool
+    var requireControl: Bool
+    var requireShift: Bool
+
+    static let `default` = ShortcutConfig(
+        keyCode: 99, requireCommand: true, requireOption: false,
+        requireControl: false, requireShift: false
+    )
+}
+
+enum TranscriptionEngine: String, Codable, CaseIterable, Identifiable {
+    case whisperCPP = "whisper.cpp"
+    case appleSpeech = "apple"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .whisperCPP: return "whisper.cpp (local)"
+        case .appleSpeech: return "Apple Speech (on-device)"
+        }
+    }
+}
+
+enum LLMProvider: String, Codable, CaseIterable, Identifiable {
+    case ollama
+    case openAICompatible = "openai"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .ollama: return "Ollama (local)"
+        case .openAICompatible: return "OpenAI-compatible API"
+        }
+    }
+}
+
+final class SettingsStore: ObservableObject {
+    static let suiteName = "com.ankur.whisperwhy"
+
+    @Published var hotkey: ShortcutConfig {
+        didSet { persist() }
+    }
+    @Published var engine: TranscriptionEngine {
+        didSet { persist() }
+    }
+    @Published var whisperModelPath: String {
+        didSet { persist() }
+    }
+    @Published var language: String {
+        didSet { persist() }
+    }
+    @Published var llmProvider: LLMProvider {
+        didSet { persist() }
+    }
+    @Published var llmBaseURL: String {
+        didSet { persist() }
+    }
+    @Published var llmModel: String {
+        didSet { persist() }
+    }
+    @Published var llmAPIKey: String {
+        didSet { persist() }
+    }
+    @Published var cleanupEnabled: Bool {
+        didSet { persist() }
+    }
+    @Published var customCleanupPrompt: String {
+        didSet { persist() }
+    }
+    @Published var launchAtLogin: Bool {
+        didSet { persist() }
+    }
+
+    init(defaults: UserDefaults = .standard) {
+        defaults.register(defaults: [
+            "hotkey": Self.encode(ShortcutConfig.default),
+            "engine": TranscriptionEngine.whisperCPP.rawValue,
+            "whisperModelPath": "",
+            "language": "en",
+            "llmProvider": LLMProvider.ollama.rawValue,
+            "llmBaseURL": "http://localhost:11434/v1",
+            "llmModel": "llama3.2:3b",
+            "llmAPIKey": "",
+            "cleanupEnabled": true,
+            "customCleanupPrompt": "",
+            "launchAtLogin": false,
+        ])
+        hotkey = Self.decode(ShortcutConfig.self, defaults.object(forKey: "hotkey")) ?? .default
+        engine = TranscriptionEngine(rawValue: defaults.string(forKey: "engine") ?? "") ?? .whisperCPP
+        whisperModelPath = defaults.string(forKey: "whisperModelPath") ?? ""
+        language = defaults.string(forKey: "language") ?? "en"
+        llmProvider = LLMProvider(rawValue: defaults.string(forKey: "llmProvider") ?? "") ?? .ollama
+        llmBaseURL = defaults.string(forKey: "llmBaseURL") ?? "http://localhost:11434/v1"
+        llmModel = defaults.string(forKey: "llmModel") ?? "llama3.2:3b"
+        llmAPIKey = defaults.string(forKey: "llmAPIKey") ?? ""
+        cleanupEnabled = defaults.bool(forKey: "cleanupEnabled")
+        customCleanupPrompt = defaults.string(forKey: "customCleanupPrompt") ?? ""
+        launchAtLogin = defaults.bool(forKey: "launchAtLogin")
+    }
+
+    private func persist() {
+        let d = UserDefaults.standard
+        d.set(Self.encode(hotkey), forKey: "hotkey")
+        d.set(engine.rawValue, forKey: "engine")
+        d.set(whisperModelPath, forKey: "whisperModelPath")
+        d.set(language, forKey: "language")
+        d.set(llmProvider.rawValue, forKey: "llmProvider")
+        d.set(llmBaseURL, forKey: "llmBaseURL")
+        d.set(llmModel, forKey: "llmModel")
+        d.set(llmAPIKey, forKey: "llmAPIKey")
+        d.set(cleanupEnabled, forKey: "cleanupEnabled")
+        d.set(customCleanupPrompt, forKey: "customCleanupPrompt")
+        d.set(launchAtLogin, forKey: "launchAtLogin")
+    }
+
+    private static func encode<T: Encodable>(_ value: T) -> Data {
+        (try? JSONEncoder().encode(value)) ?? Data()
+    }
+
+    private static func decode<T: Decodable>(_ type: T.Type, _ data: Any?) -> T? {
+        guard let data = data as? Data else { return nil }
+        return try? JSONDecoder().decode(type, from: data)
+    }
+}
