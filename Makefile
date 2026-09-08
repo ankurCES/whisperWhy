@@ -10,6 +10,7 @@
 #   make test       — build+run unit test runner
 #   make whisper    — clone+build vendored whisper.cpp (libwhisper.a, Metal on)
 #   make model      — download a small Whisper ggml model into models/
+#   make install    — copy built .app into /Applications
 #   make clean
 
 APP_NAME ?= WhisperWhy
@@ -56,6 +57,7 @@ $(APP_BUNDLE): $(SOURCES) Info.plist
 		-framework AppKit -framework SwiftUI -framework AVFoundation \
 		-framework Metal -framework MetalKit -framework Accelerate -lc++ build/whisper/ggml/src/ggml-metal/libggml-metal.a build/whisper/ggml/src/ggml-blas/libggml-blas.a -framework Accelerate -framework Foundation
 	@cp Info.plist "$(CONTENTS)/"
+	@[ -f Resources/AppIcon.icns ] && cp Resources/AppIcon.icns "$(RESOURCES)/" || true
 	@codesign --force --options runtime --sign - --entitlements WhisperWhy.entitlements "$(APP_BUNDLE)"
 	@echo "Built $(APP_BUNDLE)"
 
@@ -89,6 +91,15 @@ run: all
 	@sleep 0.3
 	@open "$(APP_BUNDLE)"
 	@echo "Launched $(APP_BUNDLE)"
+
+install: all
+	@rm -rf "/Applications/$(APP_NAME).app"
+	@cp -R "$(APP_BUNDLE)" /Applications/
+	@echo "Installed /Applications/$(APP_NAME).app"
+
+uninstall:
+	@rm -rf "/Applications/$(APP_NAME).app"
+	@echo "Removed /Applications/$(APP_NAME).app"
 
 # CLI smoke: real whisper model over a WAV, no GUI. Compiles app sources with
 # SmokeMain.swift as main.swift.
