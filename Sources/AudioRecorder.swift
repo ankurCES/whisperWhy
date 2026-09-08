@@ -34,6 +34,9 @@ final class AudioRecorder {
     private var fileHandle: FileHandle?
     private var sampleCount = 0
     private var pendingData = Data()
+    /// Peak input RMS seen this session — distinguishes "no samples" (tap
+    /// broken) from "samples but silence" (mic muted / wrong device / TCC).
+    private(set) var peakLevel: Float = 0
 
     /// Elapsed recorded seconds, for the notch timer.
     var recordedSeconds: Double { Double(sampleCount) / 16000.0 }
@@ -78,6 +81,7 @@ final class AudioRecorder {
         fileHandle = handle
         sampleCount = 0
         pendingData = Data()
+        peakLevel = 0
 
         input.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
             self?.consume(buffer: buffer, converter: converter)
@@ -94,22 +98,33 @@ final class AudioRecorder {
 
     /// Stops capture, finalizes the WAV, returns its URL. Nil if never started.
     func stop() -> URL? {
-        engine.inputNode.removeTap(onBus: 0)
+        // Stop the engine FIRST so no new tap callbacks fire while we flush;
+        // removing the tap after stop() is also the documented ordering.
         engine.stop()
+        engine.inputNode.removeTap(onBus: 0)
         isRecording = false
         defer {
             try? fileHandle?.close()
             fileHandle = nil
         }
         guard let url = wavURL, let handle = fileHandle else { return nil }
+        // Flush whatever PCM is still buffered — previously only >=64KB chunks
+        // were written, so clips shorter than ~2s lost ALL their audio and
+        // longer clips lost their tail.
+        if !pendingData.isEmpty {
+            handle.write(pendingData)
+            pendingData.removeAll(keepingCapacity: false)
+        }
         handle.seek(toFileOffset: 0)
         handle.write(Self.wavHeader(sampleCount: sampleCount))
+        try? handle.synchronize()
+        NSLog("WhisperWhy recorder: stopped with %d samples (%.2fs)", sampleCount, Double(sampleCount) / 16000.0)
         return sampleCount > 1600 ? url : nil // <0.1s of audio: treat as accidental tap
     }
 
     private func consume(buffer: AVAudioPCMBuffer, converter: AVAudioConverter) {
         // Level metering on the raw input signal, for the notch animation.
-        if let onLevel, let ch = buffer.floatChannelData {
+        if let ch = buffer.floatChannelData {
             let frames = Int(buffer.frameLength)
             if frames > 0 {
                 let p = ch[0]
@@ -117,26 +132,38 @@ final class AudioRecorder {
                 for i in stride(from: 0, to: frames, by: 4) { sum += p[i] * p[i] }
                 let n = Float((frames + 3) / 4)
                 let rms = sqrt(sum / n)
-                onLevel(max(0, min(1, rms * 6))) // gain so normal speech reaches full scale
+                if rms > peakLevel { peakLevel = rms }
+                onLevel?(max(0, min(1, rms * 6))) // gain so normal speech reaches full scale
             }
         }
-        let ratio = targetFormat.sampleRate / buffer.format.sampleRate
-        let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 1024
+
+        // Each incoming buffer is converted independently. The output must
+        // hold the *downsampled* frame count (input 48k → 16k shrinks 3x);
+        // sizing from buffer.frameLength was fine, but the converter must be
+        // reset per-buffer or it can return 0 frames after priming.
+        converter.reset()
+        let capacity = AVAudioFrameCount(Double(buffer.frameLength) *
+            (targetFormat.sampleRate / buffer.format.sampleRate)) + 64
         guard let out = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: capacity) else { return }
 
         var fed = false
         var convertError: NSError?
-        converter.convert(to: out, error: &convertError) { _, status in
+        let status = converter.convert(to: out, error: &convertError) { _, statusPtr in
             if fed {
-                status.pointee = .endOfStream
+                statusPtr.pointee = .noDataNow
                 return nil
             }
             fed = true
-            status.pointee = .haveData
+            statusPtr.pointee = .haveData
             return buffer
         }
-        guard convertError == nil, let channels = out.floatChannelData else { return }
+        if convertError != nil || status == .error {
+            NSLog("WhisperWhy recorder: converter error %@", convertError?.localizedDescription ?? "status=\(status.rawValue)")
+            return
+        }
+        guard let channels = out.floatChannelData else { return }
         let frames = Int(out.frameLength)
+        guard frames > 0 else { return }
         let floats = UnsafeBufferPointer(start: channels[0], count: frames)
         var ints = [Int16](repeating: 0, count: frames)
         for i in 0..<frames {

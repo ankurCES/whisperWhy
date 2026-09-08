@@ -119,8 +119,14 @@ final class DictationController: NSObject, ObservableObject {
     private func finishRecording() {
         guard task == nil else { return }
         notchModel.endRecording()
+        let peak = recorder.peakLevel
         guard let url = recorder.stop() else {
-            notchModel.fail("No audio captured")
+            // Distinguish broken capture from a genuinely silent mic.
+            if peak < 0.001 {
+                notchModel.fail("Mic captured silence — check input device and Microphone permission")
+            } else {
+                notchModel.fail("Recording too short — hold the button for at least a second")
+            }
             return
         }
         recordingURL = url
