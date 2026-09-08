@@ -8,6 +8,10 @@ struct LLMCleanupService {
     var model: String
     var apiKey: String
     var customPrompt: String
+    // Lines of "heard => replacement" (or a bare preferred term). Injected
+    // into the system prompt so a 3B local model can correct homophones and
+    // jargon — e.g. "what's up => WhatsApp" — that it would otherwise miss.
+    var customTerms: String
 
     static let defaultPrompt = """
     You are a dictation post-processor. You receive raw speech-to-text output and return clean text ready to be typed into an application.
@@ -25,7 +29,51 @@ struct LLMCleanupService {
 
     var prompt: String {
         let t = customPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        return t.isEmpty ? Self.defaultPrompt : t
+        var base = t.isEmpty ? Self.defaultPrompt : t
+        let terms = Self.vocabularyBlock(from: customTerms)
+        if let terms, !terms.isEmpty {
+            base += "\n\n" + terms
+        }
+        return base
+    }
+
+    /// Parse the user's vocabulary list into (heard, replacement) pairs.
+    /// Accepted line forms: "heard => replacement", "heard -> replacement",
+    /// "heard = replacement", or a bare "replacement" (must always be spelled
+    /// this way). Comment lines (#) and blanks are skipped.
+    static func parseVocabulary(_ text: String) -> [(heard: String?, replacement: String)] {
+        var pairs: [(String?, String)] = []
+        for rawLine in text.split(separator: "\n") {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            if line.isEmpty || line.hasPrefix("#") { continue }
+            for marker in ["=>", "->", "="] {
+                if let range = line.range(of: marker) {
+                    let heard = String(line[..<range.lowerBound]).trimmingCharacters(in: .whitespaces)
+                    let replacement = String(line[range.upperBound...]).trimmingCharacters(in: .whitespaces)
+                    if !replacement.isEmpty { pairs.append((heard.isEmpty ? nil : heard, replacement)) }
+                    break
+                }
+            }
+            if line.allSatisfy({ $0.isLetter || $0.isNumber || $0.isWhitespace }) && !line.isEmpty && pairs.last?.1 != line {
+                pairs.append((nil, line))
+            }
+        }
+        return pairs
+    }
+
+    /// Render vocabulary as a prompt section, or nil when nothing usable.
+    static func vocabularyBlock(from text: String) -> String? {
+        let pairs = parseVocabulary(text)
+        guard !pairs.isEmpty else { return nil }
+        var lines = ["Vocabulary — always spell these exactly as written in the output:"]
+        for (heard, replacement) in pairs {
+            if let heard {
+                lines.append("- When you hear or read \"\(heard)\", write \"\(replacement)\".")
+            } else {
+                lines.append("- \"\(replacement)\" is the correct spelling; fix any variant of it.")
+            }
+        }
+        return lines.joined(separator: "\n")
     }
 
     enum CleanupError: LocalizedError {

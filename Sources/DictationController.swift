@@ -191,7 +191,8 @@ final class DictationController: NSObject, ObservableObject {
                     baseURL: settings.llmBaseURL,
                     model: settings.llmModel,
                     apiKey: settings.llmAPIKey,
-                    customPrompt: settings.customCleanupPrompt
+                    customPrompt: settings.customCleanupPrompt,
+                    customTerms: settings.customTerms
                 )
                 let cleaned = try await service.clean(trimmed)
                 if !cleaned.isEmpty { finalText = TranscriptCore.finalize(cleaned) }

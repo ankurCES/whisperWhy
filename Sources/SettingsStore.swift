@@ -78,6 +78,10 @@ final class SettingsStore: ObservableObject {
     @Published var customCleanupPrompt: String {
         didSet { persist() }
     }
+    // One term per line: "heard => replacement" or a bare preferred term.
+    @Published var customTerms: String {
+        didSet { persist() }
+    }
     @Published var launchAtLogin: Bool {
         didSet { persist() }
     }
@@ -94,6 +98,7 @@ final class SettingsStore: ObservableObject {
             "llmAPIKey": "",
             "cleanupEnabled": true,
             "customCleanupPrompt": "",
+            "customTerms": "",
             "launchAtLogin": false,
         ])
         hotkey = Self.decode(ShortcutConfig.self, defaults.object(forKey: "hotkey")) ?? .default
@@ -106,6 +111,7 @@ final class SettingsStore: ObservableObject {
         llmAPIKey = defaults.string(forKey: "llmAPIKey") ?? ""
         cleanupEnabled = defaults.bool(forKey: "cleanupEnabled")
         customCleanupPrompt = defaults.string(forKey: "customCleanupPrompt") ?? ""
+        customTerms = defaults.string(forKey: "customTerms") ?? ""
         launchAtLogin = defaults.bool(forKey: "launchAtLogin")
     }
 
@@ -121,6 +127,7 @@ final class SettingsStore: ObservableObject {
         d.set(llmAPIKey, forKey: "llmAPIKey")
         d.set(cleanupEnabled, forKey: "cleanupEnabled")
         d.set(customCleanupPrompt, forKey: "customCleanupPrompt")
+        d.set(customTerms, forKey: "customTerms")
         d.set(launchAtLogin, forKey: "launchAtLogin")
     }
 

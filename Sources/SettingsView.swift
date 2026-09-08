@@ -117,7 +117,7 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Cleanup Prompt") {
+            Section("Cleanup Prompt — System Instructions") {
                 TextEditor(text: $store.customCleanupPrompt)
                     .frame(minHeight: 80)
                     .font(.system(size: 11, design: .monospaced))
@@ -125,8 +125,33 @@ struct SettingsView: View {
                         RoundedRectangle(cornerRadius: 4)
                             .stroke(Color.secondary.opacity(0.3))
                     )
-                Text("Leave empty to use the built-in dictation cleanup prompt.")
+                Text("System instructions the cleanup LLM follows on your speech. Leave empty to use the built-in dictation cleanup prompt.")
                     .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Button("Reset to Default") { store.customCleanupPrompt = "" }
+                    Spacer()
+                    Text(store.customCleanupPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                         ? "Currently: built-in default" : "Currently: custom")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section("Custom Vocabulary (terms & jargon)") {
+                TextEditor(text: $store.customTerms)
+                    .frame(minHeight: 90)
+                    .font(.system(size: 11, design: .monospaced))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(Color.secondary.opacity(0.3))
+                    )
+                Text("One per line. Fix what the STT hears wrong: `what's up => WhatsApp`, `zoom call => Zoom call`, `k8s => Kubernetes`, or a bare `Kubernetes` to enforce a spelling. '#' lines are ignored.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("\(LLMCleanupService.parseVocabulary(store.customTerms).count) term(s) active — injected into every cleanup request.")
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
 
@@ -135,7 +160,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 480, height: 460)
+        .frame(width: 480, height: 580)
         .padding()
     }
 
@@ -175,7 +200,8 @@ struct SettingsView: View {
             baseURL: store.llmBaseURL,
             model: store.llmModel,
             apiKey: store.llmAPIKey,
-            customPrompt: ""
+            customPrompt: "",
+            customTerms: ""
         )
         Task {
             let result = await service.testConnection()

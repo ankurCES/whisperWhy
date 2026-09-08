@@ -81,10 +81,25 @@ func runAllTests() {
 
     TestRunner.run("Settings default prompt non-empty") {
         try expectTrue(!LLMCleanupService.defaultPrompt.isEmpty, "default prompt exists")
-        let svc = LLMCleanupService(baseURL: "x", model: "m", apiKey: "", customPrompt: "  ")
-        try expectEqual(svc.prompt, LLMCleanupService.defaultPrompt, "blank custom → default")
-        let svc2 = LLMCleanupService(baseURL: "x", model: "m", apiKey: "", customPrompt: "Be terse.")
-        try expectEqual(svc2.prompt, "Be terse.", "custom prompt honored")
+        // Vocabulary parsing: mappings, arrows, bare terms, comments, junk.
+        let vocab = LLMCleanupService.parseVocabulary("what's up => WhatsApp\n# comment\nk8s -> Kubernetes\nNion = n8n\nbareterm\nnot a mapping line!!")
+        try expectEqual(vocab.count, 4, "vocab line count")
+        try expectEqual(vocab[0].heard ?? "", "what's up", "heard extraction")
+        try expectEqual(vocab[0].replacement, "WhatsApp", "replacement extraction")
+        try expectTrue(vocab.contains { $0.heard == nil && $0.replacement == "bareterm" }, "bare term")
+        let block = LLMCleanupService.vocabularyBlock(from: "what's up => WhatsApp")
+        try expectTrue(block?.contains("WhatsApp") == true, "vocab block contains term")
+        try expectTrue(LLMCleanupService.vocabularyBlock(from: "  \n# only comments\n") == nil, "empty vocab → nil block")
+        // Prompt assembly: terms appended, blank custom → default + terms.
+        let svc = LLMCleanupService(baseURL: "x", model: "m", apiKey: "", customPrompt: "", customTerms: "what's up => WhatsApp")
+        try expectTrue(svc.prompt.contains("WhatsApp"), "prompt includes vocabulary")
+        try expectTrue(svc.prompt.hasPrefix(LLMCleanupService.defaultPrompt), "default base preserved")
+        let svc2 = LLMCleanupService(baseURL: "x", model: "m", apiKey: "", customPrompt: "Be terse.", customTerms: "")
+        try expectEqual(svc2.prompt, "Be terse.", "no terms → unchanged")
+        let svcOld = LLMCleanupService(baseURL: "x", model: "m", apiKey: "", customPrompt: "  ", customTerms: "")
+        try expectEqual(svcOld.prompt, LLMCleanupService.defaultPrompt, "blank custom → default")
+        let svc2Old = LLMCleanupService(baseURL: "x", model: "m", apiKey: "", customPrompt: "Be terse.", customTerms: "")
+        try expectEqual(svc2Old.prompt, "Be terse.", "custom prompt honored")
     }
 
     TestRunner.run("WAV header writer round-trips") {
