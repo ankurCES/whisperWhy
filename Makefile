@@ -28,7 +28,9 @@ WHISPER_GGML_LIBS = $(sort $(wildcard $(BUILD_DIR)/whisper/ggml/src/libggml*.a))
 # Link whisper only when it has been built (`make whisper`); without it the
 # app still builds — the whisper.cpp engine reports itself unavailable at
 # runtime and Apple Speech remains usable.
-WHISPER_LINK = $(if $(wildcard $(WHISPER_LIB)),$(WHISPER_LIB) $(WHISPER_GGML_LIBS),)
+# ggml-metal/ggml-blas live under ggml/src/<name>/ in whisper.cpp >= 1.7.5
+WHISPER_GGML_SUB_LIBS = $(sort $(wildcard $(BUILD_DIR)/whisper/ggml/src/ggml-metal/libggml-metal.a $(BUILD_DIR)/whisper/ggml/src/ggml-blas/libggml-blas.a))
+WHISPER_LINK = $(if $(wildcard $(WHISPER_LIB)),$(WHISPER_LIB) $(WHISPER_GGML_LIBS) $(WHISPER_GGML_SUB_LIBS),)
 WHISPER_INC = vendor/whisper.cpp/include vendor/whisper.cpp/ggml/include
 # Import whisper.h through an explicit module map (build/module/whisper.modulemap)
 # so Swift can `import whisper` against the vendored C library.
@@ -55,7 +57,7 @@ $(APP_BUNDLE): $(SOURCES) Info.plist
 		$(SOURCES) \
 		$(WHISPER_LINK) \
 		-framework AppKit -framework SwiftUI -framework AVFoundation \
-		-framework Metal -framework MetalKit -framework Accelerate -lc++ build/whisper/ggml/src/ggml-metal/libggml-metal.a build/whisper/ggml/src/ggml-blas/libggml-blas.a -framework Accelerate -framework Foundation
+		-framework Metal -framework MetalKit -framework Accelerate -lc++ -framework Foundation
 	@cp Info.plist "$(CONTENTS)/"
 	@[ -f Resources/AppIcon.icns ] && cp Resources/AppIcon.icns "$(RESOURCES)/" || true
 	@codesign --force --options runtime --sign - --entitlements WhisperWhy.entitlements "$(APP_BUNDLE)"
@@ -133,6 +135,30 @@ smoke:
 		build/whisper/ggml/src/ggml-blas/libggml-blas.a \
 		-framework Accelerate -framework Foundation
 	$(BUILD_DIR)/smoke vendor/whisper.cpp/samples/jfk.wav models/ggml-base.en.bin en
+
+# Vendored whisper.cpp (Metal) — shallow-cloned at a pinned tag, built once
+# into build/whisper via CMake. This target is what install.sh's
+# `make whisper` step needs; it was missing before and fresh clones failed.
+WHISPER_CPP_TAG ?= v1.9.2
+WHISPER_STAMP = $(BUILD_DIR)/whisper/.built
+
+whisper: $(WHISPER_STAMP)
+
+$(WHISPER_STAMP):
+	@command -v cmake >/dev/null || { echo "cmake required: brew install cmake"; exit 1; }
+	@if [ ! -d vendor/whisper.cpp/.git ]; then \
+		rm -rf vendor/whisper.cpp; \
+		git clone --depth 1 --branch $(WHISPER_CPP_TAG) https://github.com/ggml-org/whisper.cpp.git vendor/whisper.cpp; \
+	fi
+	cmake -S vendor/whisper.cpp -B $(BUILD_DIR)/whisper \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DWHISPER_BUILD_EXAMPLES=OFF -DWHISPER_BUILD_TESTS=OFF \
+		-DWHISPER_BUILD_SERVER=OFF -DBUILD_SHARED_LIBS=OFF
+	cmake --build $(BUILD_DIR)/whisper --config Release -j
+	@mkdir -p $(BUILD_DIR)/module
+	@printf 'module whisper {\n    header "../../vendor/whisper.cpp/include/whisper.h"\n    export *\n}\n' > $(BUILD_DIR)/module/whisper.modulemap
+	@touch $(WHISPER_STAMP)
+	@echo "whisper.cpp $(WHISPER_CPP_TAG) built → $(BUILD_DIR)/whisper"
 
 model:
 	@mkdir -p models
