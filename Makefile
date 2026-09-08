@@ -94,8 +94,18 @@ run: all
 
 install: all
 	@rm -rf "/Applications/$(APP_NAME).app"
-	@cp -R "$(APP_BUNDLE)" /Applications/
-	@echo "Installed /Applications/$(APP_NAME).app"
+	@cp -R "$(APP_BUNDLE)" /Applications/ || { \
+		echo "Could not write to /Applications — trying ~/Applications instead"; \
+		mkdir -p "$$HOME/Applications"; \
+		rm -rf "$$HOME/Applications/$(APP_NAME).app"; \
+		cp -R "$(APP_BUNDLE)" "$$HOME/Applications/"; \
+	}
+	@dest="/Applications/$(APP_NAME).app"; \
+	[ -x "$$dest/Contents/MacOS/$(APP_NAME)" ] || dest="$$HOME/Applications/$(APP_NAME).app"; \
+	[ -x "$$dest/Contents/MacOS/$(APP_NAME)" ] || { echo "Install failed: no executable in $$dest"; exit 1; }; \
+	codesign --force --sign - "$$dest" >/dev/null 2>&1 || true; \
+	xattr -dr com.apple.quarantine "$$dest" 2>/dev/null || true; \
+	echo "Installed $$dest"
 
 uninstall:
 	@rm -rf "/Applications/$(APP_NAME).app"
