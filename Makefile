@@ -21,7 +21,7 @@ MACOS_DIR = $(CONTENTS)/MacOS
 RESOURCES = $(CONTENTS)/Resources
 ARCH ?= $(shell uname -m)
 
-SOURCES = $(shell find Sources -name '*.swift' -type f | LC_ALL=C sort)
+SOURCES = $(shell find Sources -name '*.swift' -type f ! -name SmokeMain.swift | LC_ALL=C sort)
 WHISPER_LIB = $(BUILD_DIR)/whisper/src/libwhisper.a
 WHISPER_GGML_LIBS = $(sort $(wildcard $(BUILD_DIR)/whisper/ggml/src/libggml*.a))
 # Link whisper only when it has been built (`make whisper`); without it the

@@ -10,10 +10,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var settingsController: SettingsWindowController?
     private var store: SettingsStore?
+    private var dictation: DictationController?
+    private var notchController: NotchWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let store = SettingsStore()
         self.store = store
+
+        let dictation = DictationController(settings: store)
+        self.dictation = dictation
+        let notch = NotchWindowController(model: dictation.notchModel)
+        notch.show()
+        self.notchController = notch
+        dictation.start()
 
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem.button {
@@ -25,6 +34,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Keep the agent app alive even with no windows.
         NSApp.setActivationPolicy(.accessory)
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        dictation?.shutdown()
     }
 
     // MARK: - Tray menu

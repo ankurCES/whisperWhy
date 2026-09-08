@@ -1,0 +1,44 @@
+{
+  "id": "swd-20260908-143010-37",
+  "version": 1,
+  "timestamp": "2026-09-08T14:30:10Z",
+  "request": "write_file: Sources/HotkeyManager.swift",
+  "summary": "wrote 4114 bytes to Sources/HotkeyManager.swift",
+  "file_count": 1,
+  "files": [
+    {
+      "path": "Sources/HotkeyManager.swift",
+      "operation": "CREATE",
+      "status": "verified",
+      "detail": "verified: d7287512f5b4d857",
+      "before": {
+        "path": "/Users/ankur/AI_EXPERIMENTS/Utilities/whisperWhy/Sources/HotkeyManager.swift",
+        "exists": false,
+        "size": 0,
+        "mtime": -62135596800000,
+        "sha256": ""
+      },
+      "after": {
+        "path": "/Users/ankur/AI_EXPERIMENTS/Utilities/whisperWhy/Sources/HotkeyManager.swift",
+        "exists": true,
+        "size": 4114,
+        "mtime": 1788877810027,
+        "sha256": "d7287512f5b4d8575a8b02596d5616a4b53c57684caf8fa370eeba4b0b613ad2",
+        "mode": 420
+      }
+    }
+  ],
+  "swd": {
+    "success": true,
+    "rolled_back": false,
+    "rollback_status": "not-needed"
+  },
+  "chain": {
+    "seq": 34,
+    "prev_hash": "e7a5969654be4456ee03c4d7af16a9edc969b00d2626231c65bd8aacacb4d0b6"
+  },
+  "integrity": {
+    "sha256": "461de4721e0256785fec817e89b17695c1f21f38608d9464667ad47dab0b81f3"
+  },
+  "duration_ms": 21
+}

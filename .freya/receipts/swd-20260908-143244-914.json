@@ -1,0 +1,44 @@
+{
+  "id": "swd-20260908-143244-914",
+  "version": 1,
+  "timestamp": "2026-09-08T14:32:44Z",
+  "request": "write_file: Sources/AppleSpeechService.swift",
+  "summary": "wrote 2464 bytes to Sources/AppleSpeechService.swift",
+  "file_count": 1,
+  "files": [
+    {
+      "path": "Sources/AppleSpeechService.swift",
+      "operation": "CREATE",
+      "status": "verified",
+      "detail": "verified: acfb14527e5a38e5",
+      "before": {
+        "path": "/Users/ankur/AI_EXPERIMENTS/Utilities/whisperWhy/Sources/AppleSpeechService.swift",
+        "exists": false,
+        "size": 0,
+        "mtime": -62135596800000,
+        "sha256": ""
+      },
+      "after": {
+        "path": "/Users/ankur/AI_EXPERIMENTS/Utilities/whisperWhy/Sources/AppleSpeechService.swift",
+        "exists": true,
+        "size": 2464,
+        "mtime": 1788877964905,
+        "sha256": "acfb14527e5a38e52b416180d86abc8bccd14e2c5fda9587ec5ccbe9f1a7446d",
+        "mode": 420
+      }
+    }
+  ],
+  "swd": {
+    "success": true,
+    "rolled_back": false,
+    "rollback_status": "not-needed"
+  },
+  "chain": {
+    "seq": 37,
+    "prev_hash": "b1d44869d029971e35daec2f7b69a68eafc24b5b5035ffd30933732a6a8bc0b5"
+  },
+  "integrity": {
+    "sha256": "a39ca61b12c93ef19876d53800b6edf20e6aa91af63bfaa4e289f9aca7585beb"
+  },
+  "duration_ms": 22
+}
