@@ -19,13 +19,17 @@
 </p>
 
 A free, fully-local take on [Wispr Flow](https://wisprflow.ai) /
-[FreeFlow](https://github.com/zachlatta/freeflow) with the
-[codenotch](https://github.com/vinzdg/codenotch) top-of-screen status pill.
+[FreeFlow](https://github.com/zachlatta/freeflow) with a top-of-screen
+**notch pill**: a compact animated logo + "WhisperWhy" wordmark pinned at the
+top-center of your display.
 
-Hold **Fn** (or tap **⌘Fn** to latch) anywhere in macOS, speak, release —
-your words are transcribed **on-device by whisper.cpp (Metal)**, cleaned up by
-a **local LLM** (Ollama by default — fillers removed, grammar fixed, intent
-formatted), and pasted into whatever text field the cursor is in.
+Press your **configurable hotkey combo** (default ⌘⇧Space, record any
+modifier+key in Settings) anywhere in macOS — or **click the notch logo** —
+speak, press again to stop. Your words are transcribed **on-device by
+whisper.cpp (Metal)**, cleaned up by a **local LLM** (Ollama by default —
+fillers removed, grammar fixed, intent formatted), and pasted into whatever
+text field the cursor is in. The notch never shows the transcript — it just
+animates a checkmark when the paste lands.
 
 ---
 
@@ -81,13 +85,16 @@ macOS will ask on first use — all are required for the full pipeline:
 ## Use it
 
 1. Put the cursor in any text field.
-2. **Hold Fn** and speak — the notch pill turns red with a live timer.
-   (Tap **⌘Fn** once instead to latch recording on/off; **Esc** cancels.)
-3. Release. The pill shows *transcribing → cleaning*, then the text is pasted.
+2. **Press your hotkey combo** (or **click the notch logo**) and speak — the
+   pill opens with a live equalizer and timer. Press the combo (or click the
+   logo again) to stop; **Esc** cancels.
+3. The pill animates *transcribing → cleaning up*, draws a checkmark, and the
+   cleaned text is pasted. The transcript is never displayed.
 
-The tray icon (waveform) opens **Settings**: STT engine (whisper.cpp or Apple
-Speech), whisper model path/language, LLM endpoint + model, cleanup toggle and
-custom system prompt.
+The tray icon opens **Settings**: STT engine (whisper.cpp or Apple Speech),
+whisper model path/language, LLM endpoint + model, cleanup toggle, custom
+system prompt, **hotkey combo recorder**, and a **Request Microphone
+Permission** button with live status.
 
 ## Configure
 
@@ -110,8 +117,8 @@ cleanup entirely in Settings to paste raw whisper output.
 | **Local STT** | whisper.cpp (ggml models, Metal accelerated) or Apple on-device Speech |
 | **LLM cleanup** | Filler removal, grammar, punctuation via any OpenAI-compatible endpoint |
 | **Paste anywhere** | Synthetic ⌘V at the focused cursor; clipboard snapshotted + restored; transient pasteboard markers keep clipboard managers from recording dictation |
-| **Hotkey** | Global Fn hold-to-talk; ⌘ latches tap-mode; Esc cancels |
-| **Notch UI** | Borderless non-activating panel pinned top-center: idle → recording (pulse + timer) → transcribing → cleaning → result flash |
+| **Hotkey** | Configurable modifier+key combo (record in Settings); press to start, press again to stop; Esc cancels |
+| **Notch UI** | Animated logo + "WhisperWhy" wordmark; click the logo to dictate. Recording → live equalizer + timer; processing → traveling wave + rotating status words; done → animated checkmark; transcript never shown |
 | **Tray icon** | Status-item menu: Settings, model download, quit |
 | **Keyboard-layout aware** | ⌘V resolves the V key via the current input source (non-ANSI layouts work) |
 

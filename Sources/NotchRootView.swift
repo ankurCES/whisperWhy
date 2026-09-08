@@ -46,8 +46,11 @@ struct NotchRootView: View {
     private var content: some View {
         switch model.state {
         case .idle:
-            // Just the logo — no text.
-            LogoButton(state: .idle, denied: model.accessibilityDenied, action: onMicButton)
+            // Centered logo + engine wordmark.
+            HStack(spacing: 8) {
+                LogoButton(state: .idle, denied: model.accessibilityDenied, action: onMicButton)
+                Wordmark()
+            }
 
         case .recording:
             HStack(spacing: 10) {
@@ -135,49 +138,74 @@ struct LogoButton: View {
     }
 }
 
-/// Vector logo: circle outline + S-curve, stroke-drawn with an animated
-/// gradient. `drawn` animates the stroke-end trim from 0→1 on appear.
-struct LogoMark: View {
-    var drawn: Bool
+/// Engine wordmark beside the logo — identifies the speech engine.
+struct Wordmark: View {
+    @State private var shimmer = false
 
     var body: some View {
-        ZStack {
-            Circle()
-                .trim(from: 0, to: drawn ? 1 : 0)
-                .stroke(gradient, style: StrokeStyle(lineWidth: 2.2, lineCap: .round))
-            SCurve()
-                .trim(from: 0, to: drawn ? 1 : 0)
-                .stroke(gradient, style: StrokeStyle(lineWidth: 2.2, lineCap: .round))
+        Text("WhisperWhy")
+            .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+            .foregroundStyle(
+                LinearGradient(
+                    colors: [.white.opacity(0.92), .white.opacity(0.55), .white.opacity(0.92)],
+                    startPoint: shimmer ? .leading : .trailing,
+                    endPoint: shimmer ? .trailing : .leading
+                )
+            )
+            .tracking(0.3)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true)) {
+                    shimmer = true
+                }
+            }
+    }
+}
+
+/// Vector logo: a mic-waveform mark — a vertical "voice bar" cluster inside a
+/// gradient ring, continuously animated: the bars breathe with a traveling
+/// sine wave and the ring's gradient rotates. `drawn` animates the stroke-in
+/// on first appear.
+struct LogoMark: View {
+    var drawn: Bool
+    private let barCount = 5
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            ZStack {
+                Circle()
+                    .trim(from: 0, to: drawn ? 1 : 0)
+                    .stroke(
+                        AngularGradient(
+                            colors: [.cyan, .blue, .purple, .pink, .cyan],
+                            center: .center,
+                            startAngle: .degrees(t * 40),
+                            endAngle: .degrees(t * 40 + 360)
+                        ),
+                        style: StrokeStyle(lineWidth: 2, lineCap: .round)
+                    )
+                HStack(spacing: 1.8) {
+                    ForEach(0 ..< barCount, id: \.self) { i in
+                        let centerBias = 1.0 - abs(Double(i) - 2.0) / 2.5   // taller in middle
+                        let wave = 0.5 + 0.5 * sin(t * 2.6 + Double(i) * 0.9)
+                        let h = 4 + 9 * centerBias * (0.35 + 0.65 * wave)
+                        Capsule()
+                            .fill(barGradient(hue: (t * 0.12 + Double(i) / Double(barCount)).truncatingRemainder(dividingBy: 1)))
+                            .frame(width: 2.2, height: CGFloat(h))
+                    }
+                }
+            }
         }
     }
 
-    private var gradient: LinearGradient {
-        LinearGradient(
-            colors: [.cyan, .blue, .purple, .pink],
-            startPoint: .topLeading, endPoint: .bottomTrailing
-        )
+    private func barGradient(hue: Double) -> LinearGradient {
+        let c1 = Color(hue: hue, saturation: 0.8, brightness: 1.0)
+        let c2 = Color(hue: (hue + 0.2).truncatingRemainder(dividingBy: 1), saturation: 0.8, brightness: 1.0)
+        return LinearGradient(colors: [c1, c2], startPoint: .bottom, endPoint: .top)
     }
 }
 
-/// The flowing S-curve through the circle: a sine segment, top curving
-/// right, bottom curving left — minimal echo of the sample logo's wave.
-struct SCurve: Shape {
-    func path(in rect: CGRect) -> Path {
-        var p = Path()
-        let steps = 60
-        let midY = rect.midY
-        let amp = rect.width * 0.26
-        for i in 0...steps {
-            let t = CGFloat(i) / CGFloat(steps)          // 0 top → 1 bottom
-            let y = rect.minY + t * rect.height
-            let x = rect.midX + amp * sin((t - 0.5) * .pi * 1.15)
-            if i == 0 { p.move(to: CGPoint(x: x, y: y)) }
-            else { p.addLine(to: CGPoint(x: x, y: y)) }
-        }
-        _ = midY
-        return p
-    }
-}
+
 
 /// Animated success checkmark — strokes draw in, glow pulse, then fade out
 /// is handled by the state timer in the view model.

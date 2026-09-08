@@ -7,9 +7,17 @@ import Combine
 // flush with the very top edge (snug against the hardware notch on notched
 // MacBooks, still centered where there is none).
 
+/// NSHostingView that accepts first-mouse clicks so the notch pill works
+/// with a single click even when the app isn't the active (key) window —
+/// without this, the first click only activates the panel and the user has
+/// to click twice to start/stop recording.
+final class ClickThroughHostingView: NSHostingView<NotchRootView> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
 @MainActor
 final class NotchWindowController {
-    static let collapsedSize = NSSize(width: 46, height: 34)
+    static let collapsedSize = NSSize(width: 132, height: 34)
 
     let model: NotchViewModel
     /// Called when the user taps the mic button in the notch. Wired to
@@ -34,7 +42,7 @@ final class NotchWindowController {
         let panel = NotchPanel(contentRect: frame)
         var root = NotchRootView(model: model)
         root.onMicButton = { [weak self] in self?.onMicButton?() }
-        let hosting = NSHostingView(rootView: root)
+        let hosting = ClickThroughHostingView(rootView: root)
         panel.contentView = hosting
         // Don't intercept clicks at the panel level — SwiftUI buttons inside
         // the hosting view handle their own hit-testing.
@@ -70,7 +78,7 @@ final class NotchWindowController {
         case .idle: return collapsedSize
         case .recording: return NSSize(width: 170, height: 40)
         case .transcribing, .cleaning: return NSSize(width: 170, height: 40)
-        case .done: return NSSize(width: 46, height: 40)
+        case .done: return NSSize(width: 54, height: 40)
         case .error: return NSSize(width: 340, height: 40)
         }
     }
