@@ -55,6 +55,12 @@ final class HotkeyManager {
         runLoopSource = nil
     }
 
+    deinit {
+        // The tap's userInfo is an unretained self; tearing the tap down here
+        // prevents a dangling callback if the manager is ever released early.
+        stop()
+    }
+
     private func handle(_ event: CGEvent) -> Unmanaged<CGEvent>? {
         switch event.type {
         case .flagsChanged:

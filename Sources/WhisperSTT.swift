@@ -33,13 +33,23 @@ enum WhisperSTT {
         params.print_realtime = false
         params.print_timestamps = false
         params.single_segment = false
-        if language.lowercased() != "auto" {
-            params.language = (language as NSString).utf8String!
-        }
         params.translate = false
 
-        let result = samples.withUnsafeBufferPointer { buf in
-            whisper_full(ctx, params, buf.baseAddress, Int32(buf.count))
+        var result: Int32 = -1
+        if language.lowercased() == "auto" {
+            result = samples.withUnsafeBufferPointer { buf in
+                whisper_full(ctx, params, buf.baseAddress, Int32(buf.count))
+            }
+        } else {
+            // The C struct holds a borrowed char*, so the C string must stay
+            // alive across whisper_full — scope it around the call instead of
+            // assigning a temporary NSString's utf8String (dangling pointer).
+            language.withCString { langC in
+                params.language = langC
+                result = samples.withUnsafeBufferPointer { buf in
+                    whisper_full(ctx, params, buf.baseAddress, Int32(buf.count))
+                }
+            }
         }
         guard result == 0 else { throw WhisperError.inferenceFailed(result) }
 
