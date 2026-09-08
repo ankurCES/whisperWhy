@@ -21,6 +21,11 @@ final class SettingsWindowController: NSWindowController {
 struct SettingsView: View {
     @ObservedObject var store: SettingsStore
     @State private var modelDownloadStatus: String?
+    @State private var testStatus: TestStatus?
+
+    enum TestStatus {
+        case testing, ok(String), fail(String)
+    }
 
     var body: some View {
         Form {
@@ -71,6 +76,13 @@ struct SettingsView: View {
                     SecureField("API key", text: $store.llmAPIKey)
                         .textFieldStyle(.roundedBorder)
                 }
+                HStack {
+                    Button(testButtonTitle) { testConnection() }
+                        .disabled(testStatus != nil && isTesting)
+                    if let status = testStatus {
+                        testStatusView(status)
+                    }
+                }
             }
 
             Section("Cleanup Prompt") {
@@ -100,28 +112,83 @@ struct SettingsView: View {
         return "\(mods)Fn"
     }
 
+    private var isTesting: Bool {
+        if case .testing = testStatus { return true }
+        return false
+    }
+
+    private var testButtonTitle: String {
+        isTesting ? "Testing…" : "Test Connection"
+    }
+
+    @ViewBuilder
+    private func testStatusView(_ status: TestStatus) -> some View {
+        switch status {
+        case .testing:
+            ProgressView().controlSize(.small)
+        case .ok(let msg):
+            Label(msg, systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .font(.caption)
+        case .fail(let msg):
+            Label(msg, systemImage: "xmark.octagon.fill")
+                .foregroundStyle(.red)
+                .font(.caption)
+                .lineLimit(2)
+        }
+    }
+
+    private func testConnection() {
+        testStatus = .testing
+        let service = LLMCleanupService(
+            baseURL: store.llmBaseURL,
+            model: store.llmModel,
+            apiKey: store.llmAPIKey,
+            customPrompt: ""
+        )
+        Task {
+            let result = await service.testConnection()
+            await MainActor.run {
+                testStatus = result.ok ? .ok(result.message) : .fail(result.message)
+            }
+        }
+    }
+
     private func downloadModel() {
         modelDownloadStatus = "Downloading…"
+        let modelsDir = Self.modelsDirectory()
+        try? FileManager.default.createDirectory(atPath: modelsDir, withIntermediateDirectories: true)
+        let dest = modelsDir + "/ggml-small.en.bin"
+        let url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin"
+
         let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/bash")
-        let script = FileManager.default.currentDirectoryPath + "/scripts/fetch-model.sh"
-        task.arguments = [script, "small.en"]
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
+        task.arguments = ["-fSL", "--progress-bar", "-o", dest, url]
         let pipe = Pipe()
         task.standardOutput = pipe
         task.standardError = pipe
         task.terminationHandler = { [weak store] _ in
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             let out = String(data: data, encoding: .utf8) ?? ""
-            let path = FileManager.default.currentDirectoryPath + "/models/ggml-small.en.bin"
             DispatchQueue.main.async {
-                if FileManager.default.fileExists(atPath: path) {
-                    store?.whisperModelPath = path
-                    modelDownloadStatus = "Model ready: \(path)"
+                if FileManager.default.fileExists(atPath: dest) {
+                    store?.whisperModelPath = dest
+                    modelDownloadStatus = "Model ready: \(dest)"
                 } else {
                     modelDownloadStatus = "Download failed: \(out.suffix(200))"
                 }
             }
         }
-        try? task.run()
+        do {
+            try task.run()
+        } catch {
+            modelDownloadStatus = "Could not start download: \(error.localizedDescription)"
+        }
+    }
+
+    /// Where downloaded models live when running as an installed .app.
+    static func modelsDirectory() -> String {
+        NSSearchPathForDirectoriesInDomains(.applicationSupportDirectory, .userDomainMask, true)[0]
+            + "/WhisperWhy/models"
     }
 }

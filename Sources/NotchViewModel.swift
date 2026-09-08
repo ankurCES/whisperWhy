@@ -15,6 +15,7 @@ enum NotchState: Equatable {
 final class NotchViewModel: ObservableObject {
     @Published var state: NotchState = .idle
     @Published var recordingSeconds: Int = 0
+    @Published var hotkeyHint: String = "⌘Fn to dictate"
 
     private var ticker: AnyCancellable?
 

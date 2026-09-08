@@ -21,6 +21,14 @@ final class HotkeyManager {
     private var recording = false
     private var tapMode = false // latched via Cmd during a hold
 
+    /// Modifier requirements, mirroring SettingsStore.ShortcutConfig.
+    /// When requireCommand is true the *activation* is ⌘Fn (a chord), and
+    /// holding keeps recording until both are released.
+    var requireCommand = true
+    var requireOption = false
+    var requireControl = false
+    var requireShift = false
+
     var onEvent: ((ShortcutEvent) -> Void)?
 
     func start() throws {
@@ -46,6 +54,7 @@ final class HotkeyManager {
         CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .defaultMode)
         CGEvent.tapEnable(tap: tap, enable: true)
         fnDown = false
+        cmdDown = false
     }
 
     func stop() {
@@ -61,16 +70,32 @@ final class HotkeyManager {
         stop()
     }
 
+    /// Whether the event tap is actually live. The tap silently fails to
+    /// deliver events without Accessibility/Input Monitoring, so the UI
+    /// checks this to warn the user instead of looking dead.
+    var isActive: Bool { eventTap != nil }
+
+    /// Required modifier set for activation (from SettingsStore.ShortcutConfig).
+    private func requiredModsSatisfied(_ flags: CGEventFlags) -> Bool {
+        if requireCommand && !flags.contains(.maskCommand) { return false }
+        if requireOption && !flags.contains(.maskAlternate) { return false }
+        if requireControl && !flags.contains(.maskControl) { return false }
+        if requireShift && !flags.contains(.maskShift) { return false }
+        return true
+    }
+
     private func handle(_ event: CGEvent) -> Unmanaged<CGEvent>? {
         switch event.type {
         case .flagsChanged:
             let newFn = event.flags.contains(.maskSecondaryFn)
             let newCmd = event.flags.contains(.maskCommand)
+
             if newFn != fnDown {
                 fnDown = newFn
                 if newFn {
-                    // Fn down: begin hold (or keep going if already latched).
-                    if !recording {
+                    // Fn edge. Activation only counts when the required
+                    // modifiers are also held (⌘Fn, not bare Fn).
+                    if !recording && requiredModsSatisfied(event.flags) {
                         recording = true
                         tapMode = false
                         onEvent?(.startHold)
@@ -80,16 +105,30 @@ final class HotkeyManager {
                     onEvent?(.endHold)
                 }
             }
-            // Cmd pressed while holding Fn latches tap mode (FreeFlow's
-            // "extend your hold shortcut to latch" behavior).
-            if recording, !tapMode, newCmd && !cmdDown {
+
+            // Releasing a required modifier while recording ends the hold —
+            // otherwise lifting ⌘ before Fn would leave the mic stuck on.
+            if recording && !tapMode && !requiredModsSatisfied(event.flags) {
+                recording = false
+                fnDown = false
+                onEvent?(.endHold)
+                cmdDown = newCmd
+                return Unmanaged.passUnretained(event)
+            }
+
+            // While recording in hold mode, tapping the *other* modifier
+            // (Cmd if it's not required) latches tap mode so you can release
+            // both keys. This mirrors FreeFlow's "extend hold to latch".
+            if recording, !tapMode, newCmd && !cmdDown && !requireCommand {
                 tapMode = true
                 onEvent?(.toggle)
             }
             cmdDown = newCmd
+
         case .keyDown:
             if recording && event.getIntegerValueField(.keyboardEventKeycode) == Int64(kVK_Escape) {
                 recording = false
+                tapMode = false
                 onEvent?(.endHold) // caller treats as cancel via pipeline hook
             }
         default:
@@ -105,6 +144,7 @@ final class HotkeyManager {
     func endLatch() {
         if recording && tapMode {
             recording = false
+            tapMode = false
             onEvent?(.endHold)
         }
     }
@@ -112,7 +152,7 @@ final class HotkeyManager {
     enum HotkeyError: LocalizedError {
         case tapUnavailable
         var errorDescription: String? {
-            "Global hotkey monitoring could not start. WhisperWhy needs Accessibility + Input Monitoring permission (System Settings → Privacy & Security)."
+            "Hotkey monitoring couldn't start. Grant Accessibility + Input Monitoring in System Settings → Privacy & Security, then relaunch WhisperWhy."
         }
     }
 }

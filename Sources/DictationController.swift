@@ -24,10 +24,24 @@ final class DictationController: NSObject, ObservableObject {
         hotkey.onEvent = { [weak self] event in
             Task { @MainActor in self?.handle(event) }
         }
+        // Mirror the activation modifiers from settings.
+        hotkey.requireCommand = settings.hotkey.requireCommand
+        hotkey.requireOption = settings.hotkey.requireOption
+        hotkey.requireControl = settings.hotkey.requireControl
+        hotkey.requireShift = settings.hotkey.requireShift
+        notchModel.hotkeyHint = (settings.hotkey.requireCommand ? "⌘" : "") + "Fn to dictate"
+
+        // Prompt for Accessibility the first time; without it the event tap
+        // starts but never delivers flagsChanged, so ⌘Fn silently does nothing.
+        let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        let trusted = AXIsProcessTrustedWithOptions(opts)
         do {
             try hotkey.start()
+            if !trusted {
+                notchModel.fail("Grant Accessibility to WhisperWhy, then relaunch — hotkey needs it")
+            }
         } catch {
-            notchModel.fail("Hotkey unavailable: grant Accessibility + Input Monitoring")
+            notchModel.fail(error.localizedDescription)
         }
     }
 
@@ -126,6 +140,7 @@ final class DictationController: NSObject, ObservableObject {
 
             guard !cancelled else { return }
             notchModel.finish(finalText)
+            hotkey.endLatch() // a latched session ends once we've pasted
             PasteService.paste(finalText)
         } catch {
             notchModel.fail(error.localizedDescription)
@@ -133,10 +148,13 @@ final class DictationController: NSObject, ObservableObject {
     }
 
     static func defaultModelPath() -> String {
+        let appSupport = NSSearchPathForDirectoriesInDomains(.applicationSupportDirectory, .userDomainMask, true)[0]
+            + "/WhisperWhy/models"
         let candidates = [
-            "models/ggml-base.en.bin", // dev layout
-            (NSSearchPathForDirectoriesInDomains(.applicationSupportDirectory, .userDomainMask, true)[0]
-                + "/WhisperWhy/models/ggml-base.en.bin"),
+            appSupport + "/ggml-small.en.bin",
+            appSupport + "/ggml-base.en.bin",
+            "models/ggml-small.en.bin", // dev layout
+            "models/ggml-base.en.bin",
         ]
         return candidates.first { FileManager.default.fileExists(atPath: $0) }
             ?? candidates[0]

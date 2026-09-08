@@ -52,6 +52,52 @@ struct LLMCleanupService {
         return try Self.parseResponse(data)
     }
 
+    /// Lightweight connectivity probe for the Settings "Test connection"
+    /// button. Sends a minimal chat completion and reports what came back so
+    /// the user can distinguish auth / URL / model errors from a good config.
+    func testConnection() async -> TestResult {
+        var request: URLRequest
+        do {
+            request = try Self.makeRequest(
+                baseURL: baseURL, model: model, apiKey: apiKey,
+                prompt: "You are a connectivity check. Reply with exactly: ok",
+                input: "ping"
+            )
+        } catch {
+            return .failure(error.localizedDescription)
+        }
+        request.timeoutInterval = 15
+        let started = Date()
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let latency = Date().timeIntervalSince(started)
+            guard (200..<300).contains(status) else {
+                let body = String(data: data, encoding: .utf8) ?? ""
+                return .failure("HTTP \(status): \(body.prefix(200))")
+            }
+            let reply = (try? Self.parseResponse(data)) ?? ""
+            return .success(latency: latency, reply: reply)
+        } catch {
+            return .failure(error.localizedDescription)
+        }
+    }
+
+    enum TestResult {
+        case success(latency: TimeInterval, reply: String)
+        case failure(String)
+
+        var message: String {
+            switch self {
+            case .success(let latency, let reply):
+                let r = reply.isEmpty ? "" : " — \(reply.prefix(40))"
+                return String(format: "Connected in %.2fs%@", latency, r)
+            case .failure(let why): return why
+            }
+        }
+        var ok: Bool { if case .success = self { return true }; return false }
+    }
+
     // MARK: - Pure, testable pieces
 
     static func endpoint(fromBase baseURL: String) -> URL? {
@@ -93,10 +139,28 @@ struct LLMCleanupService {
         else { throw CleanupError.emptyResponse }
 
         var text = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Reasoning models (MiniMax-M3, DeepSeek-R1, QwQ…) wrap their chain of
+        // thought in <think>…</think>. That is not dictation output — drop it
+        // so it never gets pasted into the user's text box.
+        text = Self.stripThinkBlocks(text)
         if text.hasPrefix("\""), text.hasSuffix("\""), text.count >= 2 {
             text = String(text.dropFirst().dropLast())
         }
         if text.uppercased() == "EMPTY" { return "" }
         return text
+    }
+
+    /// Removes <think>…</think> (and unclosed leading <think>) sections.
+    static func stripThinkBlocks(_ text: String) -> String {
+        var t = text
+        // Closed blocks first.
+        while let open = t.range(of: "<think>"), let close = t.range(of: "</think>"), open.lowerBound < close.lowerBound {
+            t.removeSubrange(open.lowerBound..<close.upperBound)
+        }
+        // A leading unclosed <think> (stream cut off) — drop to end.
+        if let open = t.range(of: "<think>"), open.lowerBound == t.startIndex {
+            t = ""
+        }
+        return t.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

@@ -28,7 +28,7 @@ struct NotchRootView: View {
             HStack(spacing: 8) {
                 Image(systemName: "waveform")
                     .font(.system(size: 12, weight: .semibold))
-                Text("⌘Fn to dictate")
+                Text(model.hotkeyHint)
                     .font(.system(size: 12, weight: .medium))
                     .lineLimit(1)
             }

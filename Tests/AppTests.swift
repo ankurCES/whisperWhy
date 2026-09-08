@@ -52,6 +52,11 @@ func runAllTests() {
         try expectEqual(try LLMCleanupService.parseResponse(Data(empty.utf8)), "", "EMPTY contract")
         let quoted = #"{"choices":[{"message":{"content":"\"Hello.\""}}]}"#
         try expectEqual(try LLMCleanupService.parseResponse(Data(quoted.utf8)), "Hello.", "quote-stripped")
+        // Reasoning models wrap CoT in <think>…</think>; it must never reach the pasteboard.
+        let thinking = #"{"choices":[{"message":{"content":"<think>\nreasoning here\n</think>\n\nFinal answer."}}]}"#
+        try expectEqual(try LLMCleanupService.parseResponse(Data(thinking.utf8)), "Final answer.", "think block stripped")
+        let unclosed = #"{"choices":[{"message":{"content":"<think>only reasoning, stream cut"}}]}"#
+        try expectEqual(try LLMCleanupService.parseResponse(Data(unclosed.utf8)), "", "unclosed leading think → empty")
         let bad = Data("garbage".utf8)
         do {
             _ = try LLMCleanupService.parseResponse(bad)
