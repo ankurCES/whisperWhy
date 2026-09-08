@@ -61,19 +61,10 @@ struct NotchRootView: View {
                     .font(.system(size: 13, weight: .semibold).monospacedDigit())
             }
 
-        case .transcribing:
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small).tint(.blue)
-                Text("transcribing")
-                    .font(.system(size: 12, weight: .medium))
-            }
-            .transition(.scale(scale: 0.9).combined(with: .opacity))
-
-        case .cleaning:
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small).tint(.blue)
-                Text("cleaning up")
-                    .font(.system(size: 12, weight: .medium))
+        case .transcribing, .cleaning:
+            HStack(spacing: 10) {
+                ProcessingWave()
+                RotatingWords()
             }
             .transition(.scale(scale: 0.9).combined(with: .opacity))
 
@@ -189,5 +180,66 @@ struct EqualizerBars: View {
         let pulse = 0.5 + 0.5 * sin(time * 3.3 - Double(index) * 0.4)
         let h = 4 + envelope * (10 + 12 * wave * pulse + 4 * wave)
         return CGFloat(min(h, 28))
+    }
+}
+
+// Colorful rotating wave shown while whisper / the LLM is working: 5 bars
+// cycling through a hue-rotating gradient, each pulsing out of phase so it
+// reads as motion even before any status word appears.
+struct ProcessingWave: View {
+    var barCount = 5
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            HStack(spacing: 3) {
+                ForEach(0 ..< barCount, id: \.self) { i in
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(barGradient(time: t, index: i))
+                        .frame(width: 3.5, height: barHeight(index: i, time: t))
+                }
+            }
+        }
+    }
+
+    private func barHeight(index: Int, time: TimeInterval) -> CGFloat {
+        let phase = Double(index) * 0.85
+        let wave = 0.5 + 0.5 * sin(time * 6.5 + phase)
+        let h = 5 + wave * 17
+        return CGFloat(h)
+    }
+
+    private func barGradient(time: TimeInterval, index: Int) -> LinearGradient {
+        // Hue rotates over time; neighbouring bars offset so the colour
+        // appears to travel along the wave.
+        let base = (time * 0.25 + Double(index) * 0.14).truncatingRemainder(dividingBy: 1)
+        let c1 = Color(hue: base, saturation: 0.85, brightness: 0.95)
+        let c2 = Color(hue: (base + 0.18).truncatingRemainder(dividingBy: 1), saturation: 0.85, brightness: 1.0)
+        return LinearGradient(colors: [c1, c2], startPoint: .bottom, endPoint: .top)
+    }
+}
+
+// Rotating status words — "transcribing" → "cleaning up" → "polishing" —
+// sliding vertically with a blur so the notch communicates progress even when
+// the underlying stage doesn't change (e.g. a long whisper run).
+struct RotatingWords: View {
+    private let words = ["transcribing", "cleaning up", "polishing", "almost there"]
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1.4)) { timeline in
+            let elapsed = timeline.date.timeIntervalSinceReferenceDate
+            let idx = Int(elapsed / 1.4) % words.count
+            Text(words[idx])
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(0.9))
+                .id(idx) // force re-render so the transition fires
+                .transition(.asymmetric(
+                    insertion: .move(edge: .bottom).combined(with: .opacity),
+                    removal: .move(edge: .top).combined(with: .opacity)
+                ))
+                .animation(.easeInOut(duration: 0.35), value: idx)
+        }
+        .frame(width: 84, alignment: .leading)
+        .clipped()
     }
 }
