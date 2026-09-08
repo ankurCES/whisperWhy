@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Local-first dictation for macOS, notch style.</strong><br/>
-  Hold a key, speak, release — cleaned-up text lands at your cursor.<br/>
+  Press your hotkey combo, speak, press again — cleaned-up text lands at your cursor.<br/>
   No audio, transcript, or text ever leaves the machine.
 </p>
 
@@ -79,7 +79,7 @@ macOS will ask on first use — all are required for the full pipeline:
 |---|---|
 | **Microphone** | Dictation capture |
 | **Accessibility** | Paste the final text at the focused cursor |
-| **Input Monitoring** | Global Fn/⌘Fn hotkey tap |
+| **Input Monitoring** | Global hotkey-combo tap (click-to-dictate works without it) |
 | **Speech Recognition** | Only if you switch to the Apple Speech engine |
 
 ## Use it
@@ -128,7 +128,7 @@ cleanup entirely in Settings to paste raw whisper output.
 Sources/
   App.swift                  @main SwiftUI shim
   AppDelegate.swift          tray menu, wiring, lifetime
-  HotkeyManager.swift        CGEvent tap: Fn hold / ⌘ latch / Esc cancel
+  HotkeyManager.swift        CGEvent tap: press-to-toggle combo, Esc cancel
   AudioRecorder.swift        AVAudioEngine → 16 kHz mono PCM WAV
   WhisperSTT.swift           whisper.cpp C interop (module map, Metal)
   AppleSpeechService.swift   on-device SFSpeechRecognizer fallback
