@@ -22,6 +22,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let dictation = DictationController(settings: store)
         self.dictation = dictation
         let notch = NotchWindowController(model: dictation.notchModel)
+        // Wire the colorful mic button → same pipeline as the hotkey.
+        // Works without Accessibility permission since it's a direct click.
+        notch.onMicButton = { [weak dictation] in dictation?.toggleRecording() }
         notch.show()
         self.notchController = notch
         dictation.start()

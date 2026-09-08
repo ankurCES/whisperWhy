@@ -9,9 +9,12 @@ import Combine
 
 @MainActor
 final class NotchWindowController {
-    static let collapsedSize = NSSize(width: 190, height: 34)
+    static let collapsedSize = NSSize(width: 220, height: 34)
 
     let model: NotchViewModel
+    /// Called when the user taps the mic button in the notch. Wired to
+    /// DictationController.toggleRecording by AppDelegate.
+    var onMicButton: (() -> Void)?
     private var panel: NotchPanel?
     private var hostingView: NSHostingView<NotchRootView>?
     private var cancellables = Set<AnyCancellable>()
@@ -29,10 +32,12 @@ final class NotchWindowController {
         let screen = NSScreen.main ?? NSScreen.screens[0]
         let frame = Self.frame(for: Self.size(for: model.state), in: screen)
         let panel = NotchPanel(contentRect: frame)
-        let root = NotchRootView(model: model)
+        var root = NotchRootView(model: model)
+        root.onMicButton = { [weak self] in self?.onMicButton?() }
         let hosting = NSHostingView(rootView: root)
         panel.contentView = hosting
-        panel.onClick = { [weak self] in self?.model.toggleExpanded() }
+        // Don't intercept clicks at the panel level — SwiftUI buttons inside
+        // the hosting view handle their own hit-testing.
         panel.orderFrontRegardless()
         self.panel = panel
         self.hostingView = hosting
@@ -63,7 +68,7 @@ final class NotchWindowController {
     static func size(for state: NotchState) -> NSSize {
         switch state {
         case .idle: return collapsedSize
-        case .recording: return NSSize(width: 230, height: 40)
+        case .recording: return NSSize(width: 250, height: 40)
         case .transcribing, .cleaning: return NSSize(width: 230, height: 40)
         case .done, .error: return NSSize(width: 340, height: 40)
         }

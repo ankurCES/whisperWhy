@@ -131,6 +131,16 @@ final class DictationController: NSObject, ObservableObject {
         }
     }
 
+    /// Public toggle for the notch mic button — same pipeline as the hotkey.
+    /// Works without Accessibility permission since it's a direct click.
+    func toggleRecording() {
+        if recorder.isRecording {
+            finishRecording()
+        } else {
+            beginRecording()
+        }
+    }
+
     /// Esc / error path: drop the recording without transcribing.
     func cancelRecording() {
         cancelled = true

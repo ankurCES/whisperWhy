@@ -24,6 +24,8 @@ final class AudioRecorder {
     var onLevel: ((Float) -> Void)?
 
     private let engine = AVAudioEngine()
+    /// True while the engine is capturing. Set on start, cleared on stop.
+    private(set) var isRecording = false
     private let targetFormat = AVAudioFormat(
         commonFormat: .pcmFormatFloat32, sampleRate: 16000, channels: 1, interleaved: false
     )!
@@ -83,6 +85,7 @@ final class AudioRecorder {
         engine.prepare()
         do {
             try engine.start()
+            isRecording = true
         } catch {
             input.removeTap(onBus: 0)
             throw AudioRecorderError.engineStartFailed(error.localizedDescription)
@@ -93,6 +96,7 @@ final class AudioRecorder {
     func stop() -> URL? {
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
+        isRecording = false
         defer {
             try? fileHandle?.close()
             fileHandle = nil

@@ -6,6 +6,9 @@ import SwiftUI
 
 struct NotchRootView: View {
     @ObservedObject var model: NotchViewModel
+    /// Called when the user taps the mic button. Wired to the same
+    /// start/stop pipeline the hotkey drives.
+    var onMicButton: (() -> Void)?
 
     var body: some View {
         ZStack {
@@ -38,29 +41,21 @@ struct NotchRootView: View {
     private var content: some View {
         switch model.state {
         case .idle:
-            if model.accessibilityDenied {
-                // Can't hear the hotkey at all. This is the actionable banner
-                // the user sees instead of a dead pill.
-                HStack(spacing: 8) {
+            HStack(spacing: 8) {
+                if model.accessibilityDenied {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.yellow)
-                    Text("Hotkey blocked — grant Accessibility")
-                        .font(.system(size: 12, weight: .medium))
-                        .lineLimit(1)
                 }
-            } else {
-                HStack(spacing: 8) {
-                    Image(systemName: "waveform")
-                        .font(.system(size: 12, weight: .semibold))
-                    Text(model.hotkeyHint)
-                        .font(.system(size: 12, weight: .medium))
-                        .lineLimit(1)
-                }
+                MicButton(state: .idle, action: onMicButton)
+                Text(model.accessibilityDenied ? "Hotkey blocked — grant Accessibility" : model.hotkeyHint)
+                    .font(.system(size: 12, weight: .medium))
+                    .lineLimit(1)
             }
 
         case .recording:
             HStack(spacing: 10) {
+                MicButton(state: .recording, action: onMicButton)
                 EqualizerBars(level: model.micLevel)
                 Text(String(format: "%d:%02d", model.recordingSeconds / 60, model.recordingSeconds % 60))
                     .font(.system(size: 13, weight: .semibold).monospacedDigit())
@@ -106,6 +101,55 @@ struct NotchRootView: View {
             }
             .transition(.scale(scale: 0.9).combined(with: .opacity))
         }
+    }
+}
+
+// Colorful circular mic button — the primary affordance. Idle shows a
+// gradient-filled mic icon; recording shows a pulsing red stop icon.
+// Bypasses the hotkey entirely: works even without Accessibility permission.
+struct MicButton: View {
+    enum Mode { case idle, recording }
+    let state: Mode
+    let action: (() -> Void)?
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button {
+            action?()
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(gradient)
+                    .frame(width: 20, height: 20)
+                    .shadow(color: shadowColor.opacity(0.6), radius: state == .recording ? 6 : 3)
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white)
+            }
+            .scaleEffect(hovering ? 1.15 : 1.0)
+            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: hovering)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(state == .recording ? "Stop recording" : "Start recording")
+    }
+
+    private var gradient: LinearGradient {
+        switch state {
+        case .idle:
+            LinearGradient(colors: [.cyan, .purple], startPoint: .topLeading, endPoint: .bottomTrailing)
+        case .recording:
+            LinearGradient(colors: [.red, .pink], startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
+    }
+
+    private var shadowColor: Color {
+        state == .recording ? .red : .purple
+    }
+
+    private var icon: String {
+        state == .recording ? "stop.fill" : "mic.fill"
     }
 }
 
