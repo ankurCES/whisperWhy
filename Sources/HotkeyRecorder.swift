@@ -8,30 +8,50 @@ import SwiftUI
 struct HotkeyRecorderButton: View {
     @Binding var shortcut: ShortcutConfig
     @State private var capturing = false
+    @State private var rejected = false
     @State private var monitor: Any?
     @State private var flagsMonitor: Any?
 
     var body: some View {
         Button(action: startCapture) {
-            Text(capturing ? "Press a key…  (Esc to cancel)" : shortcut.displayName)
+            Text(label)
                 .font(.system(size: 12, weight: .medium).monospaced())
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
                 .background(
                     RoundedRectangle(cornerRadius: 6)
-                        .fill(capturing ? Color.accentColor.opacity(0.2) : Color.secondary.opacity(0.12))
+                        .fill(fillColor)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)
-                        .stroke(capturing ? Color.accentColor : Color.secondary.opacity(0.3), lineWidth: 1)
+                        .stroke(borderColor, lineWidth: 1)
                 )
         }
         .buttonStyle(.plain)
         .onDisappear(perform: stopCapture)
     }
 
+    private var label: String {
+        if capturing { return "Press a combo…  (Esc to cancel)" }
+        if rejected { return "Add a modifier — ⌘ ⌥ ⌃ ⇧" }
+        return shortcut.displayName
+    }
+
+    private var fillColor: Color {
+        if capturing { return Color.accentColor.opacity(0.2) }
+        if rejected { return Color.red.opacity(0.15) }
+        return Color.secondary.opacity(0.12)
+    }
+
+    private var borderColor: Color {
+        if capturing { return .accentColor }
+        if rejected { return .red }
+        return Color.secondary.opacity(0.3)
+    }
+
     private func startCapture() {
         stopCapture()
+        rejected = false
         capturing = true
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             if event.keyCode == 53 { // kVK_Escape
@@ -53,14 +73,21 @@ struct HotkeyRecorderButton: View {
     }
 
     private func capture(keyCode: UInt32, flags: NSEvent.ModifierFlags) {
-        // The trigger key itself never counts as a modifier.
         var config = ShortcutConfig.default
         config.keyCode = keyCode
         config.requireCommand = flags.contains(.command)
         config.requireOption = flags.contains(.option)
         config.requireControl = flags.contains(.control)
         config.requireShift = flags.contains(.shift)
-        // Fn/Globe as trigger: don't require it as a modifier, just the key.
+        // A bare letter/Space would fire globally while typing — the combo
+        // MUST include a modifier. Fn is the only unmodified trigger allowed.
+        let hasModifier = config.requireCommand || config.requireOption
+            || config.requireControl || config.requireShift
+        guard keyCode == 99 || hasModifier else {
+            rejected = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { rejected = false }
+            return // keep capturing
+        }
         shortcut = config
         stopCapture()
     }

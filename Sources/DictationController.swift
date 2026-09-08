@@ -87,8 +87,10 @@ final class DictationController: NSObject, ObservableObject {
             beginRecording()
         case .endHold:
             finishRecording()
+        case .cancel:
+            cancelRecording()
         case .toggle:
-            break // latching state is tracked inside HotkeyManager
+            break
         }
     }
 
@@ -181,7 +183,6 @@ final class DictationController: NSObject, ObservableObject {
 
             guard !cancelled else { return }
             notchModel.finish(finalText)
-            hotkey.endLatch() // a latched session ends once we've pasted
             PasteService.paste(finalText)
         } catch {
             notchModel.fail(error.localizedDescription)

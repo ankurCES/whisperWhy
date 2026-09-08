@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import SwiftUI
 
 // Settings window: single SwiftUI form over SettingsStore.
@@ -22,6 +23,7 @@ struct SettingsView: View {
     @ObservedObject var store: SettingsStore
     @State private var modelDownloadStatus: String?
     @State private var testStatus: TestStatus?
+    @State private var micStatus: AVAudioApplication.recordPermission = AVAudioApplication.shared.recordPermission
 
     enum TestStatus {
         case testing, ok(String), fail(String)
@@ -35,10 +37,41 @@ struct SettingsView: View {
                     Spacer()
                     HotkeyRecorderButton(shortcut: $store.hotkey)
                 }
-                Text("Click the button, then press any key (or Fn). Hold to talk; with ⌘ held, tap to latch. Changes apply on save.")
+                Text("Press the combo to start recording; press it again to stop, transcribe, clean up and paste. A modifier (⌘ ⌥ ⌃ ⇧) is required — Fn is the only key that works alone. Esc cancels.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Section("Permissions") {
+                HStack {
+                    Text("Microphone")
+                    Spacer()
+                    switch micStatus {
+                    case .granted:
+                        Label("Granted", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    case .denied:
+                        Button("Open Microphone Settings") {
+                            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")!)
+                        }
+                        .controlSize(.small)
+                    default:
+                        Button("Request Microphone Access") {
+                            Task {
+                                _ = await AudioRecorder.ensureMicPermission()
+                                micStatus = AVAudioApplication.shared.recordPermission
+                            }
+                        }
+                        .controlSize(.small)
+                    }
+                }
+                if micStatus == .denied {
+                    Text("Denied — macOS won't re-ask. Enable WhisperWhy in System Settings, then relaunch.")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+            .onAppear { micStatus = AVAudioApplication.shared.recordPermission }
 
             Section("Transcription") {
                 Picker("Engine", selection: $store.engine) {

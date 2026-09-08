@@ -2,34 +2,47 @@ import Cocoa
 import Carbon.HIToolbox // kVK_Escape
 import os.log
 
-// Global hotkey via CGEvent tap — FreeFlow's approach. Listens for flagsChanged
-// (Fn and modifier presses) and keyDown/keyUp globally. Needs Accessibility
-// permission (Input Monitoring for flagsChanged); the app directs the user to
-// System Settings on failure.
+// Global hotkey via CGEvent tap. The configured COMBINATION (e.g. ⌥Space,
+// ⌘⇧D, Fn alone) is the trigger: pressing it toggles recording on/off.
+// Press once → record starts; press again → record stops and the pipeline
+// (transcribe → LLM cleanup → paste) runs. Esc while recording cancels.
+//
+// A non-Fn trigger requires at least one modifier — a bare letter or Space
+// would fire while typing. Fn alone is the only allowed unmodified trigger
+// because it produces no text. Needs Accessibility + Input Monitoring.
 
 enum ShortcutEvent: Equatable {
-    case startHold      // hold-to-talk began
-    case endHold        // hold-to-talk released → finalize
-    case toggle         // tap-toggle started/stopped
+    case startHold   // toggle-press: begin recording
+    case endHold     // toggle-press: stop recording → run pipeline
+    case cancel      // Esc during recording: discard
+    case toggle      // unused by the controller; kept for API stability
 }
 
 final class HotkeyManager {
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var fnDown = false
-    private var cmdDown = false
     private var recording = false
-    private var tapMode = false // latched via Cmd during a hold
 
-    /// Modifier requirements, mirroring SettingsStore.ShortcutConfig.
-    /// When requireCommand is true the *activation* is ⌘Fn (a chord), and
-    /// holding keeps recording until both are released.
+    /// Required modifier set for the combination (from SettingsStore.ShortcutConfig).
     var requireCommand = true
     var requireOption = false
     var requireControl = false
     var requireShift = false
 
     var onEvent: ((ShortcutEvent) -> Void)?
+
+    /// The trigger key this manager listens for, as a CGKeyCode.
+    /// Default 99 = Fn/Globe.
+    private(set) var triggerKeyCode: CGKeyCode = 99
+
+    private var triggerIsFn: Bool { triggerKeyCode == 99 }
+
+    /// A combination is only valid if it includes a modifier — except Fn.
+    /// Bare Space/letters would hijack normal typing globally.
+    var combinationIsValid: Bool {
+        triggerIsFn || requireCommand || requireOption || requireControl || requireShift
+    }
 
     func start() throws {
         stop()
@@ -54,7 +67,6 @@ final class HotkeyManager {
         CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .defaultMode)
         CGEvent.tapEnable(tap: tap, enable: true)
         fnDown = false
-        cmdDown = false
     }
 
     func stop() {
@@ -75,7 +87,6 @@ final class HotkeyManager {
     /// checks this to warn the user instead of looking dead.
     var isActive: Bool { eventTap != nil }
 
-    /// Required modifier set for activation (from SettingsStore.ShortcutConfig).
     private func requiredModsSatisfied(_ flags: CGEventFlags) -> Bool {
         if requireCommand && !flags.contains(.maskCommand) { return false }
         if requireOption && !flags.contains(.maskAlternate) { return false }
@@ -84,25 +95,32 @@ final class HotkeyManager {
         return true
     }
 
-    /// The trigger key this manager listens for, as a CGKeyCode.
-    /// Default 99 = Fn/Globe. Any key works — a letter, F-key, or modifier —
-    /// because we match on the event's keyCode, not a hard-coded constant.
-    /// Settable via Settings → "Record new hotkey".
-    private(set) var triggerKeyCode: CGKeyCode = 99
-
-    /// Whether the trigger is the Fn/Globe key (driven by flagsChanged).
-    private var triggerIsFn: Bool { triggerKeyCode == 99 }
-
     func setTriggerKeyCode(_ keyCode: CGKeyCode) {
         dispatchPrecondition(condition: .onQueue(.main))
         triggerKeyCode = keyCode
-        // Changing the trigger mid-recording would wedge state; end cleanly.
         if recording {
             recording = false
-            tapMode = false
             fnDown = false
             onEvent?(.endHold)
         }
+    }
+
+    private func toggleRecording() {
+        if recording {
+            recording = false
+            fnDown = false
+            onEvent?(.endHold)
+        } else {
+            recording = true
+            onEvent?(.startHold)
+        }
+    }
+
+    private func cancelRecording() {
+        guard recording else { return }
+        recording = false
+        fnDown = false
+        onEvent?(.cancel)
     }
 
     private func handle(_ event: CGEvent) -> Unmanaged<CGEvent>? {
@@ -110,88 +128,35 @@ final class HotkeyManager {
         switch event.type {
         case .flagsChanged:
             let newFn = event.flags.contains(.maskSecondaryFn)
-            let newCmd = event.flags.contains(.maskCommand)
-
-            // Fn/Globe trigger: driven by the flagsChanged flag.
+            // Fn/Globe trigger: toggle on each Fn press edge, provided the
+            // required modifiers (if any) are held at that moment.
             if triggerIsFn, newFn != fnDown {
                 fnDown = newFn
-                if newFn {
-                    // Fn edge. Activation only counts when the required
-                    // modifiers are also held (⌘Fn, not bare Fn).
-                    if !recording && requiredModsSatisfied(event.flags) {
-                        recording = true
-                        tapMode = false
-                        onEvent?(.startHold)
-                    }
-                } else if recording && !tapMode {
-                    recording = false
-                    onEvent?(.endHold)
+                if newFn && requiredModsSatisfied(event.flags) {
+                    toggleRecording()
                 }
             }
-
-            // Releasing a required modifier while recording ends the hold —
-            // otherwise lifting ⌘ before Fn would leave the mic stuck on.
-            if recording && !tapMode && !requiredModsSatisfied(event.flags) {
-                recording = false
-                fnDown = false
-                onEvent?(.endHold)
-                cmdDown = newCmd
-                return Unmanaged.passUnretained(event)
-            }
-
-            // While recording in hold mode, tapping the *other* modifier
-            // (Cmd if it's not required) latches tap mode so you can release
-            // both keys. This mirrors FreeFlow's "extend hold to latch".
-            if recording, !tapMode, newCmd && !cmdDown && !requireCommand {
-                tapMode = true
-                onEvent?(.toggle)
-            }
-            cmdDown = newCmd
-
         case .keyDown:
             if recording && keyCode == CGKeyCode(kVK_Escape) {
-                recording = false
-                tapMode = false
-                onEvent?(.endHold) // caller treats as cancel via pipeline hook
+                cancelRecording()
                 break
             }
-            // Non-Fn trigger: any regular key (letter, F-key, etc.). Key
-            // repeat is ignored so holding a key doesn't retrigger.
+            // Combination trigger: the key arrives as keyDown with its
+            // modifiers already in flags. Key repeat is ignored so holding
+            // the combo doesn't flicker on/off.
             if !triggerIsFn, keyCode == triggerKeyCode,
-               event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
-                if !recording && requiredModsSatisfied(event.flags) {
-                    recording = true
-                    tapMode = false
-                    fnDown = true
-                    onEvent?(.startHold)
-                }
+               event.getIntegerValueField(.keyboardEventAutorepeat) == 0,
+               combinationIsValid, requiredModsSatisfied(event.flags) {
+                toggleRecording()
             }
-
-        case .keyUp:
-            // Non-Fn trigger: releasing the key ends a hold (not a latch).
-            if !triggerIsFn, keyCode == triggerKeyCode, recording, !tapMode {
-                recording = false
-                fnDown = false
-                onEvent?(.endHold)
-            }
-
         default:
             break
         }
         return Unmanaged.passUnretained(event)
     }
 
-    /// True when a recording session is active (hold or latched).
+    /// True when a recording session is active.
     var isRecording: Bool { recording }
-
-    /// Called by the controller when it has finished a latched session.
-    func endLatch() {
-        if recording && tapMode {
-            recording = false
-            tapMode = false
-            onEvent?(.endHold)
-        }
-    }
 
     enum HotkeyError: LocalizedError {
         case tapUnavailable
