@@ -42,13 +42,19 @@ TEST_RUNNER = $(BUILD_DIR)/WhisperWhyTests
 
 .PHONY: all run typecheck test whisper model clean
 
-all: $(APP_BUNDLE)
+APP_BIN = $(MACOS_DIR)/$(APP_NAME)
 
-$(APP_BUNDLE): $(SOURCES) Info.plist
+all: $(APP_BIN)
+
+# Depend on the binary, not the bundle dir: a directory's mtime only changes
+# when entries are added/removed, so a half-built bundle from a failed earlier
+# run would satisfy `$(APP_BUNDLE)` and skip the build ("Nothing to be done"),
+# leaving no executable to install.
+$(APP_BIN): $(SOURCES) Info.plist
 	@mkdir -p "$(MACOS_DIR)" "$(RESOURCES)"
 	swiftc \
 		-parse-as-library \
-		-o "$(MACOS_DIR)/$(APP_NAME)" \
+		-o "$(APP_BIN)" \
 		-sdk $(shell xcrun --show-sdk-path) \
 		-target $(ARCH)-apple-macosx14.0 \
 		-parse-as-library \
@@ -95,6 +101,7 @@ run: all
 	@echo "Launched $(APP_BUNDLE)"
 
 install: all
+	@[ -x "$(APP_BIN)" ] || { echo "Install failed: no built executable at $(APP_BIN) — run 'make clean && make'"; exit 1; }
 	@rm -rf "/Applications/$(APP_NAME).app"
 	@cp -R "$(APP_BUNDLE)" /Applications/ || { \
 		echo "Could not write to /Applications — trying ~/Applications instead"; \
