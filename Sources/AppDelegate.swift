@@ -1,7 +1,7 @@
 import AppKit
+import ApplicationServices
 import Combine
 import SwiftUI
-import Combine
 
 // Owns the app lifetime: status item (tray), notch panel, dictation controller,
 // pipeline, settings. Everything is wired here once and kept alive for the
@@ -25,6 +25,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         notch.show()
         self.notchController = notch
         dictation.start()
+        // Request + watch Accessibility trust; without it the event tap never
+        // receives keystrokes, which is why the hotkey looked dead.
+        watchAccessibilityTrust(model: dictation.notchModel)
 
         // Push hotkey changes to the manager live, the moment Settings saves.
         store.$hotkey
@@ -47,6 +50,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         dictation?.shutdown()
+    }
+
+    // MARK: - Accessibility (hotkey-listening) permission
+
+    /// Request Accessibility trust on first launch, then watch it so the notch
+    /// can show an actionable banner while the permission is missing. This is
+    /// the call that actually makes macOS show the grant dialog; nothing else
+    /// in the app ever triggers it, which is why the prompt never appeared.
+    private func watchAccessibilityTrust(model: NotchViewModel) {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
+        let trusted = AXIsProcessTrustedWithOptions(options)
+        NSLog("WhisperWhy accessibility: trusted=\(trusted)")
+        MainActor.assumeIsolated { model.accessibilityDenied = !trusted }
+
+        Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak model] _ in
+            let now = AXIsProcessTrusted()
+            Task { @MainActor [weak model] in
+                guard let model else { return }
+                if now != !model.accessibilityDenied {
+                    model.accessibilityDenied = !now
+                    NSLog("WhisperWhy accessibility: trusted changed -> \(now)")
+                }
+            }
+        }
     }
 
     // MARK: - Tray menu

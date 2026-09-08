@@ -30,7 +30,7 @@ struct NotchRootView: View {
         case .transcribing, .cleaning: return .blue
         case .done: return .green
         case .error: return .yellow
-        case .idle: return .clear
+        case .idle: return model.accessibilityDenied ? .yellow : .clear
         }
     }
 
@@ -38,12 +38,25 @@ struct NotchRootView: View {
     private var content: some View {
         switch model.state {
         case .idle:
-            HStack(spacing: 8) {
-                Image(systemName: "waveform")
-                    .font(.system(size: 12, weight: .semibold))
-                Text(model.hotkeyHint)
-                    .font(.system(size: 12, weight: .medium))
-                    .lineLimit(1)
+            if model.accessibilityDenied {
+                // Can't hear the hotkey at all. This is the actionable banner
+                // the user sees instead of a dead pill.
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.yellow)
+                    Text("Hotkey blocked — grant Accessibility")
+                        .font(.system(size: 12, weight: .medium))
+                        .lineLimit(1)
+                }
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "waveform")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text(model.hotkeyHint)
+                        .font(.system(size: 12, weight: .medium))
+                        .lineLimit(1)
+                }
             }
 
         case .recording:

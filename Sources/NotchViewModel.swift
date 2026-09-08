@@ -20,6 +20,8 @@ final class NotchViewModel: ObservableObject {
     @Published var micLevel: Float = 0
     /// False while a mic-permission problem is being shown.
     @Published var micPermissionDenied = false
+    /// False while Accessibility (hotkey-listening) permission is missing.
+    @Published var accessibilityDenied = false
 
     private var ticker: AnyCancellable?
     private var lastLevelAt = Date.distantPast
