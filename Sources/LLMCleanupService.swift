@@ -57,8 +57,9 @@ struct LLMCleanupService {
     static func endpoint(fromBase baseURL: String) -> URL? {
         var trimmed = baseURL.trimmingCharacters(in: .whitespaces)
         while trimmed.hasSuffix("/") { trimmed.removeLast() }
+        guard trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://") else { return nil }
         // Ollama's native API lives at /api/chat; its OpenAI shim at /v1.
-        // Accept a bare host and default to the OpenAI-compatible path.
+        // Accept a bare host:port and default to the OpenAI-compatible path.
         if !trimmed.hasSuffix("/v1") { trimmed += "/v1" }
         return URL(string: trimmed + "/chat/completions")
     }

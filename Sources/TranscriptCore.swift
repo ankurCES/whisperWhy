@@ -22,7 +22,7 @@ enum TranscriptCore {
 enum WAVCore {
     /// Returns mono 16 kHz samples from a 16-bit PCM WAV, or nil if malformed.
     static func samples(from data: Data) -> [Float]? {
-        guard data.count > 44 else { return nil }
+        guard data.count >= 44 else { return nil }
         let bytes = [UInt8](data)
         guard String(decoding: bytes[0..<4], as: UTF8.self) == "RIFF",
               String(decoding: bytes[8..<12], as: UTF8.self) == "WAVE"

@@ -71,14 +71,17 @@ typecheck:
 		$(SOURCES)
 
 test:
-	@mkdir -p "$(BUILD_DIR)"
+	@mkdir -p "$(BUILD_DIR)/test-src"
+	@cp Sources/*.swift $(BUILD_DIR)/test-src/
+	@rm -f $(BUILD_DIR)/test-src/App.swift $(BUILD_DIR)/test-src/SmokeMain.swift
 	swiftc \
-		-parse-as-library \
 		-warnings-as-errors \
 		-o "$(TEST_RUNNER)" \
 		-sdk $(shell xcrun --show-sdk-path) \
 		-target $(ARCH)-apple-macosx14.0 \
-		$(SOURCES) Tests/*.swift
+		$(BUILD_DIR)/test-src/*.swift \
+		Tests/TestMain.swift Tests/AppTests.swift Tests/main.swift \
+		-framework AppKit -framework AVFoundation
 	@$(TEST_RUNNER)
 
 run: all
@@ -87,9 +90,8 @@ run: all
 	@open "$(APP_BUNDLE)"
 	@echo "Launched $(APP_BUNDLE)"
 
-# CLI smoke: run the real whisper model over a WAV without launching the GUI.
-# Compiles app sources minus App.swift with SmokeMain.swift as main.swift
-# (top-level code needs no -parse-as-library).
+# CLI smoke: real whisper model over a WAV, no GUI. Compiles app sources with
+# SmokeMain.swift as main.swift.
 smoke:
 	@mkdir -p $(BUILD_DIR)/smoke-src
 	@cp Sources/*.swift $(BUILD_DIR)/smoke-src/
@@ -105,15 +107,11 @@ smoke:
 		$(BUILD_DIR)/smoke-src/*.swift \
 		$(WHISPER_LIB) $(WHISPER_GGML_LIBS) \
 		-framework AppKit -framework AVFoundation \
-		-framework Metal -framework MetalKit -framework Accelerate -lc++ build/whisper/ggml/src/ggml-metal/libggml-metal.a build/whisper/ggml/src/ggml-blas/libggml-blas.a -framework Accelerate -framework Foundation
+		-framework Metal -framework MetalKit -framework Accelerate -lc++ \
+		build/whisper/ggml/src/ggml-metal/libggml-metal.a \
+		build/whisper/ggml/src/ggml-blas/libggml-blas.a \
+		-framework Accelerate -framework Foundation
 	$(BUILD_DIR)/smoke vendor/whisper.cpp/samples/jfk.wav models/ggml-base.en.bin en
-
-whisper:
-	@test -d vendor/whisper.cpp || git clone --depth 1 --branch v1.9.2 https://github.com/ggml-org/whisper.cpp vendor/whisper.cpp
-	cmake -S vendor/whisper.cpp -B $(BUILD_DIR)/whisper -DCMAKE_BUILD_TYPE=Release \
-		-DGGML_METAL=ON -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF \
-		-DWHISPER_BUILD_EXAMPLES=OFF -DCMAKE_OSX_ARCHITECTURES=arm64
-	cmake --build $(BUILD_DIR)/whisper --target whisper -j8
 
 model:
 	@mkdir -p models
@@ -122,12 +120,6 @@ model:
 clean:
 	rm -rf $(BUILD_DIR)
 
-.PHONY: help
+.PHONY: all run typecheck test smoke whisper model clean help
 help:
-	@echo "make          build app"
-	@echo "make run      build + launch"
-	@echo "make typecheck"
-	@echo "make test"
-	@echo "make whisper  build vendored whisper.cpp"
-	@echo "make model    MODEL=base.en (default: small.en)"
-	@echo "make clean"
+	@echo "make | run | typecheck | test | smoke | whisper | model MODEL=... | clean"
