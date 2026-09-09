@@ -19,10 +19,11 @@
 </p>
 
 A free, fully-local take on [Wispr Flow](https://wisprflow.ai) /
-[FreeFlow](https://github.com/zachlatta/freeflow) with a top-of-screen
-**notch pill**: a compact animated logo + "WhisperWhy" wordmark pinned at the
-top of your display (**top right** by default — switch to top center or top
-left in Settings → Notch).
+[FreeFlow](https://github.com/zachlatta/freeflow) with an always-on-screen
+**notch pill**: a compact animated logo + "WhisperWhy" wordmark. Anchor it
+wherever you like — **top right** (default), top center, top left, left/right
+screen edge, or a **floating dock** above the bottom edge — in
+Settings → Notch.
 
 Press your **configurable hotkey combo** (default ⌘⇧Space, record any
 modifier+key in Settings) anywhere in macOS — or **click the notch logo** —

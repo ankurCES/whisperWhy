@@ -11,6 +11,8 @@ import SwiftUI
 
 struct NotchRootView: View {
     @ObservedObject var model: NotchViewModel
+    /// Vertical layout (left/right screen edges): content stacks top-to-bottom.
+    var vertical: Bool = false
     /// Called when the user taps the logo/button. Wired to the same
     /// start/stop pipeline the hotkey drives.
     var onMicButton: (() -> Void)?
@@ -28,7 +30,10 @@ struct NotchRootView: View {
         .foregroundStyle(.white)
         // Spring the whole pill on every state change so the notch visibly
         // pops open when dictation starts and settles closed when it ends.
+        // The same spring also fires when the anchor flips the layout
+        // (vertical ↔ horizontal), so changing position in Settings glides.
         .animation(.spring(response: 0.32, dampingFraction: 0.72), value: model.state)
+        .animation(.spring(response: 0.32, dampingFraction: 0.72), value: vertical)
     }
 
     /// Recording glows red-pink; processing glows blue; idle has no glow.
@@ -44,29 +49,33 @@ struct NotchRootView: View {
 
     @ViewBuilder
     private var content: some View {
+        if vertical {
+            VStack(spacing: 10) { contentPieces }
+        } else {
+            HStack(spacing: 10) { contentPieces }
+        }
+    }
+
+    @ViewBuilder
+    private var contentPieces: some View {
         switch model.state {
         case .idle:
             // Centered logo + engine wordmark.
-            HStack(spacing: 8) {
-                LogoButton(state: .idle, denied: model.accessibilityDenied, action: onMicButton)
-                Wordmark()
-            }
+            LogoButton(state: .idle, denied: model.accessibilityDenied, action: onMicButton)
+            Wordmark(vertical: vertical)
 
         case .recording:
-            HStack(spacing: 10) {
-                LogoButton(state: .recording, denied: false, action: onMicButton)
-                EqualizerBars(level: model.micLevel)
-                Text(String(format: "%d:%02d", model.recordingSeconds / 60, model.recordingSeconds % 60))
-                    .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(.white.opacity(0.85))
-            }
+            LogoButton(state: .recording, denied: false, action: onMicButton)
+            EqualizerBars(level: model.micLevel, vertical: vertical)
+            Text(String(format: "%d:%02d", model.recordingSeconds / 60, model.recordingSeconds % 60))
+                .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                .foregroundStyle(.white.opacity(0.85))
+                .rotationEffect(vertical ? .degrees(90) : .degrees(0))
 
         case .transcribing, .cleaning:
-            HStack(spacing: 10) {
-                ProcessingWave()
-                RotatingWords()
-            }
-            .transition(.scale(scale: 0.9).combined(with: .opacity))
+            ProcessingWave(vertical: vertical)
+            RotatingWords(vertical: vertical)
+                .transition(.scale(scale: 0.9).combined(with: .opacity))
 
         case .done:
             // Success: animated checkmark draw, no transcript text.
@@ -74,16 +83,13 @@ struct NotchRootView: View {
                 .transition(.scale(scale: 0.7).combined(with: .opacity))
 
         case .error(let message):
-            HStack(spacing: 8) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.yellow)
-                    .font(.system(size: 11))
-                Text(message)
-                    .font(.system(size: 11))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-            .transition(.scale(scale: 0.9).combined(with: .opacity))
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.yellow)
+                .font(.system(size: 11))
+            Text(message)
+                .font(.system(size: 11))
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
     }
 }
@@ -140,6 +146,7 @@ struct LogoButton: View {
 
 /// Engine wordmark beside the logo — identifies the speech engine.
 struct Wordmark: View {
+    var vertical: Bool = false
     @State private var shimmer = false
 
     var body: some View {
@@ -153,6 +160,8 @@ struct Wordmark: View {
                 )
             )
             .tracking(0.3)
+            .fixedSize()
+            .rotationEffect(vertical ? .degrees(90) : .degrees(0))
             .onAppear {
                 withAnimation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true)) {
                     shimmer = true
@@ -249,6 +258,7 @@ struct CheckShape: Shape {
 // input and flatlines visibly when the mic captures nothing.
 struct EqualizerBars: View {
     var level: Float
+    var vertical: Bool = false
     var barCount: Int = NotchViewModel.barCount
 
     var body: some View {
@@ -263,6 +273,7 @@ struct EqualizerBars: View {
                         .animation(.linear(duration: 0.05), value: level)
                 }
             }
+            .rotationEffect(vertical ? .degrees(-90) : .degrees(0))
         }
     }
 
@@ -287,6 +298,7 @@ struct EqualizerBars: View {
 // rotating so the color appears to travel along the wave. Shows while the
 // pipeline (whisper + LLM) is running.
 struct ProcessingWave: View {
+    var vertical: Bool = false
     private let barCount = 5
 
     var body: some View {
@@ -301,6 +313,7 @@ struct ProcessingWave: View {
                         .frame(width: 4, height: CGFloat(h))
                 }
             }
+            .rotationEffect(vertical ? .degrees(-90) : .degrees(0))
         }
     }
 
@@ -315,6 +328,7 @@ struct ProcessingWave: View {
 // sliding vertically so the notch communicates progress even when the
 // underlying stage doesn't change (e.g. a long whisper run).
 struct RotatingWords: View {
+    var vertical: Bool = false
     private let words = ["transcribing", "cleaning up", "polishing", "almost there"]
 
     var body: some View {
@@ -326,12 +340,12 @@ struct RotatingWords: View {
                 .foregroundStyle(.white.opacity(0.9))
                 .id(idx) // force re-render so the transition fires
                 .transition(.asymmetric(
-                    insertion: .move(edge: .bottom).combined(with: .opacity),
-                    removal: .move(edge: .top).combined(with: .opacity)
+                    insertion: .move(edge: vertical ? .trailing : .bottom).combined(with: .opacity),
+                    removal: .move(edge: vertical ? .leading : .top).combined(with: .opacity)
                 ))
                 .animation(.easeInOut(duration: 0.35), value: idx)
         }
-        .frame(width: 84, alignment: .leading)
+        .frame(width: vertical ? nil : 84, height: vertical ? 90 : nil, alignment: vertical ? .center : .leading)
         .clipped()
     }
 }

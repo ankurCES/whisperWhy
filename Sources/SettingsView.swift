@@ -48,7 +48,7 @@ struct SettingsView: View {
                         Text(pos.displayName).tag(pos)
                     }
                 }
-                Text("Where the notch pill anchors on the top edge of your screen.")
+                Text("Where the pill anchors: the top edge, a vertical screen edge, or a floating dock above the bottom edge.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

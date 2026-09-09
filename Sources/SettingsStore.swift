@@ -45,17 +45,55 @@ enum LLMProvider: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-/// Where on the top edge of the screen the notch pill anchors.
+/// Where on screen the notch pill anchors. Includes the three top-edge spots
+/// plus the left/right screen edges (vertically centered) and a floating dock
+/// hovering just above the bottom edge, Dock-style.
 enum NotchPosition: String, Codable, CaseIterable, Identifiable {
-    case left, center, right
+    case topLeft, topCenter, topRight
+    case leftCenter, rightCenter
+    case bottomDock
+
+    // Back-compat raw values for the originally shipped positions.
+    static let left = NotchPosition.topLeft
+    static let center = NotchPosition.topCenter
+    static let right = NotchPosition.topRight
 
     var id: String { rawValue }
 
+    /// Older launches persisted "left"/"center"/"right" — decode them onto
+    /// the new case names so the setting survives the upgrade.
+    init?(rawValue: String) {
+        switch rawValue {
+        case "left": self = .topLeft
+        case "center": self = .topCenter
+        case "right": self = .topRight
+        case "topLeft": self = .topLeft
+        case "topCenter": self = .topCenter
+        case "topRight": self = .topRight
+        case "leftCenter": self = .leftCenter
+        case "rightCenter": self = .rightCenter
+        case "bottomDock": self = .bottomDock
+        default: return nil
+        }
+    }
+
     var displayName: String {
         switch self {
-        case .left: return "Top left"
-        case .center: return "Top center"
-        case .right: return "Top right"
+        case .topLeft: return "Top left"
+        case .topCenter: return "Top center"
+        case .topRight: return "Top right"
+        case .leftCenter: return "Left center"
+        case .rightCenter: return "Right center"
+        case .bottomDock: return "Floating dock"
+        }
+    }
+
+    /// Vertical positions lay the pill out as a rotated (tall) pill instead of
+    /// a wide one, so the content reads top-to-bottom along the screen edge.
+    var isVertical: Bool {
+        switch self {
+        case .leftCenter, .rightCenter: return true
+        default: return false
         }
     }
 }
