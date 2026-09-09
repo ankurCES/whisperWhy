@@ -21,7 +21,8 @@
 A free, fully-local take on [Wispr Flow](https://wisprflow.ai) /
 [FreeFlow](https://github.com/zachlatta/freeflow) with a top-of-screen
 **notch pill**: a compact animated logo + "WhisperWhy" wordmark pinned at the
-top-center of your display.
+top of your display (**top right** by default — switch to top center or top
+left in Settings → Notch).
 
 Press your **configurable hotkey combo** (default ⌘⇧Space, record any
 modifier+key in Settings) anywhere in macOS — or **click the notch logo** —
@@ -137,7 +138,7 @@ Sources/
   PasteService.swift         clipboard snapshot → ⌘V → restore
   DictationController.swift  pipeline orchestration
   NotchPanel.swift           borderless non-activating NSPanel
-  NotchWindowController.swift top-center placement, state sizing
+  NotchWindowController.swift top-edge placement (left/center/right), state sizing
   NotchViewModel/RootView    pill states + SwiftUI chrome
   SettingsStore/View         UserDefaults-backed settings + SwiftUI form
 ```

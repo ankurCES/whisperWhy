@@ -45,6 +45,21 @@ enum LLMProvider: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// Where on the top edge of the screen the notch pill anchors.
+enum NotchPosition: String, Codable, CaseIterable, Identifiable {
+    case left, center, right
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .left: return "Top left"
+        case .center: return "Top center"
+        case .right: return "Top right"
+        }
+    }
+}
+
 final class SettingsStore: ObservableObject {
     static let suiteName = "com.ankur.whisperwhy"
 
@@ -85,6 +100,10 @@ final class SettingsStore: ObservableObject {
     @Published var launchAtLogin: Bool {
         didSet { persist() }
     }
+    /// Where the notch pill sits on the top edge. Default: top right.
+    @Published var notchPosition: NotchPosition {
+        didSet { persist() }
+    }
 
     init(defaults: UserDefaults = .standard) {
         defaults.register(defaults: [
@@ -100,6 +119,7 @@ final class SettingsStore: ObservableObject {
             "customCleanupPrompt": "",
             "customTerms": "",
             "launchAtLogin": false,
+            "notchPosition": NotchPosition.right.rawValue,
         ])
         hotkey = Self.decode(ShortcutConfig.self, defaults.object(forKey: "hotkey")) ?? .default
         engine = TranscriptionEngine(rawValue: defaults.string(forKey: "engine") ?? "") ?? .whisperCPP
@@ -113,6 +133,7 @@ final class SettingsStore: ObservableObject {
         customCleanupPrompt = defaults.string(forKey: "customCleanupPrompt") ?? ""
         customTerms = defaults.string(forKey: "customTerms") ?? ""
         launchAtLogin = defaults.bool(forKey: "launchAtLogin")
+        notchPosition = NotchPosition(rawValue: defaults.string(forKey: "notchPosition") ?? "") ?? .right
     }
 
     private func persist() {
@@ -129,6 +150,7 @@ final class SettingsStore: ObservableObject {
         d.set(customCleanupPrompt, forKey: "customCleanupPrompt")
         d.set(customTerms, forKey: "customTerms")
         d.set(launchAtLogin, forKey: "launchAtLogin")
+        d.set(notchPosition.rawValue, forKey: "notchPosition")
     }
 
     private static func encode<T: Encodable>(_ value: T) -> Data {

@@ -42,6 +42,17 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Notch") {
+                Picker("Position", selection: $store.notchPosition) {
+                    ForEach(NotchPosition.allCases) { pos in
+                        Text(pos.displayName).tag(pos)
+                    }
+                }
+                Text("Where the notch pill anchors on the top edge of your screen.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Permissions") {
                 HStack {
                     Text("Microphone")

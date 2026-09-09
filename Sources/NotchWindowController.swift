@@ -3,9 +3,9 @@ import SwiftUI
 import QuartzCore
 import Combine
 
-// Places and shows/hides the notch panel at the top-center of the screen,
+// Places and shows/hides the notch panel along the top edge of the screen,
 // flush with the very top edge (snug against the hardware notch on notched
-// MacBooks, still centered where there is none).
+// MacBooks), anchored left / center / right per Settings (default: right).
 
 /// NSHostingView that accepts first-mouse clicks so the notch pill works
 /// with a single click even when the app isn't the active (key) window —
@@ -20,6 +20,10 @@ final class NotchWindowController {
     static let collapsedSize = NSSize(width: 132, height: 34)
 
     let model: NotchViewModel
+    /// Where the pill anchors on the top edge. Live-updatable from Settings.
+    var position: NotchPosition {
+        didSet { if oldValue != position { relayout() } }
+    }
     /// Called when the user taps the mic button in the notch. Wired to
     /// DictationController.toggleRecording by AppDelegate.
     var onMicButton: (() -> Void)?
@@ -27,8 +31,9 @@ final class NotchWindowController {
     private var hostingView: NSHostingView<NotchRootView>?
     private var cancellables = Set<AnyCancellable>()
 
-    init(model: NotchViewModel) {
+    init(model: NotchViewModel, position: NotchPosition = .right) {
         self.model = model
+        self.position = position
         model.$state
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.relayout() }
@@ -38,7 +43,7 @@ final class NotchWindowController {
     func show() {
         guard panel == nil else { return }
         let screen = NSScreen.main ?? NSScreen.screens[0]
-        let frame = Self.frame(for: Self.size(for: model.state), in: screen)
+        let frame = Self.frame(for: Self.size(for: model.state), in: screen, at: position)
         let panel = NotchPanel(contentRect: frame)
         var root = NotchRootView(model: model)
         root.onMicButton = { [weak self] in self?.onMicButton?() }
@@ -64,7 +69,7 @@ final class NotchWindowController {
         guard let panel else { return }
         let screen = NSScreen.main ?? NSScreen.screens[0]
         let size = Self.size(for: model.state)
-        let target = Self.frame(for: size, in: screen)
+        let target = Self.frame(for: size, in: screen, at: position)
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.32
             ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 1.4, 0.4, 1.0) // overshoot spring
@@ -83,9 +88,18 @@ final class NotchWindowController {
         }
     }
 
-    static func frame(for size: NSSize, in screen: NSScreen) -> NSRect {
+    static func frame(for size: NSSize, in screen: NSScreen, at position: NotchPosition = .center) -> NSRect {
         let screenFrame = screen.frame
-        let x = screenFrame.midX - size.width / 2
+        let margin: CGFloat = 24
+        let x: CGFloat
+        switch position {
+        case .left:
+            x = screenFrame.minX + margin
+        case .center:
+            x = screenFrame.midX - size.width / 2
+        case .right:
+            x = screenFrame.maxX - size.width - margin
+        }
         let y = screenFrame.maxY - size.height
         return NSRect(x: x, y: y, width: size.width, height: size.height)
     }

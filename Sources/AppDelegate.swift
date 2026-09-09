@@ -21,7 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let dictation = DictationController(settings: store)
         self.dictation = dictation
-        let notch = NotchWindowController(model: dictation.notchModel)
+        let notch = NotchWindowController(model: dictation.notchModel, position: store.notchPosition)
         // Wire the colorful mic button → same pipeline as the hotkey.
         // Works without Accessibility permission since it's a direct click.
         notch.onMicButton = { [weak dictation] in dictation?.toggleRecording() }
@@ -37,6 +37,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .dropFirst() // initial value already applied by dictation.start()
             .receive(on: RunLoop.main)
             .sink { [weak dictation] _ in dictation?.applyShortcut() }
+            .store(in: &cancellables)
+
+        // Move the notch live when the user changes its position in Settings.
+        store.$notchPosition
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak notch] newPosition in
+                guard let notch else { return }
+                Task { @MainActor in notch.position = newPosition }
+            }
             .store(in: &cancellables)
 
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
